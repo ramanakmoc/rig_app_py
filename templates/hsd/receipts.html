@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#9651; HSD Receipts</h3>
+  <a href="{% url 'hsd_add_receipt' %}" class="btn btn-success btn-sm">&#10010; Add Receipt</a>
+</div>
+
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6">
+      <label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">Month</label>
+      <input type="month" name="month" class="form-control form-control-sm" value="{{ filters.month }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'hsd_receipts' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6"><div class="stat-card green"><h6>Total Received</h6><h2>{{ stats.total_qty|floatformat:1|default:"0" }}</h2><small>Litres</small></div></div>
+  <div class="col-md-3 col-6"><div class="stat-card amber"><h6>Total Amount</h6><h2>&#8377;{{ stats.total_amount|floatformat:0|default:"0" }}</h2></div></div>
+  <div class="col-md-3 col-6"><div class="stat-card blue"><h6>Transactions</h6><h2>{{ stats.count|default:"0" }}</h2></div></div>
+</div>
+
+<div class="card-box">
+  <div class="section-title">HSD Receipts ({{ receipts|length }})</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead>
+        <tr><th>Date</th><th>Rig</th><th>Receipt No</th><th>Supplier</th><th>Vehicle No</th><th>Qty (L)</th><th>Rate/L</th><th>Amount</th><th>Received By</th><th>Remarks</th>
+        {% if request.user.profile.role == 'admin' %}<th>Del</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for r in receipts %}
+        <tr>
+          <td>{{ r.date }}</td>
+          <td><strong>{{ r.rig }}</strong></td>
+          <td style="font-size:12px">{{ r.receipt_no|default:"—" }}</td>
+          <td style="font-size:12px">{{ r.supplier_name|default:r.supplier|default:"—" }}</td>
+          <td style="font-size:12px">{{ r.vehicle_no|default:"—" }}</td>
+          <td style="color:#16a34a;font-weight:700">{{ r.quantity_ltrs|floatformat:1 }}</td>
+          <td style="font-size:12px">{% if r.rate_per_ltr %}&#8377;{{ r.rate_per_ltr|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td style="font-size:12px">{% if r.invoice_amount %}&#8377;{{ r.invoice_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td style="font-size:12px">{{ r.received_by|default:"—" }}</td>
+          <td style="font-size:12px;color:#64748b">{{ r.remarks|default:"—" }}</td>
+          {% if request.user.profile.role == 'admin' %}
+          <td>
+            <form method="post" action="{% url 'hsd_delete_receipt' r.pk %}" style="display:inline"
+                  onsubmit="return confirm('Delete this receipt?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="11" class="text-center text-muted py-4">No receipts found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

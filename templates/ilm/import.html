@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#8679; Import ILM Excel</h3>
+  <a href="{% url 'ilm_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; ILM Report</a>
+</div>
+
+<div class="card-box mb-4" style="background:#eff6ff;border:1px solid #bfdbfe">
+  <div class="section-title" style="color:#1d4ed8">How to Use</div>
+  <div class="row g-3" style="font-size:13px;color:#1e40af">
+    <div class="col-md-3"><strong>Step 1</strong><br>Select the rig (PPE-3, PPE-4 etc.) this file belongs to</div>
+    <div class="col-md-3"><strong>Step 2</strong><br>Choose your ILM Excel file (.xlsx). All monthly sheets imported at once</div>
+    <div class="col-md-3"><strong>Step 3</strong><br>Click Preview — review all rows before saving. Nothing saved yet</div>
+    <div class="col-md-3"><strong>Step 4</strong><br>Re-select the file and click Confirm Import to save all rows</div>
+  </div>
+</div>
+
+<div class="card-box mb-4">
+  <div class="section-title">Upload File</div>
+  <form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="hidden" name="mode" id="modeInput" value="preview">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Rig <span class="text-danger">*</span></label>
+        <select name="rig" class="form-select" required>
+          <option value="">— Select Rig —</option>
+          {% for r in rigs %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Excel File (.xlsx) <span class="text-danger">*</span></label>
+        <input type="file" name="excel_file" class="form-control" accept=".xlsx" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Duplicate Handling</label>
+        <div class="form-check">
+          <input type="checkbox" name="skip_duplicates" class="form-check-input" id="skipDup" checked>
+          <label class="form-check-label" for="skipDup" style="font-size:12px">Skip existing entries</label>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"
+                onclick="document.getElementById('modeInput').value='preview'">
+          &#128065; Preview
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if preview %}
+<div class="card-box">
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <div class="section-title mb-0">Preview — {{ preview|length }} rows found</div>
+    <div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:6px">
+        &#9432; Re-select the same file below and click Confirm Import
+      </div>
+      <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="mode" value="import">
+        <input type="hidden" name="rig"  value="{{ request.POST.rig }}">
+        <input type="hidden" name="skip_duplicates" value="1">
+        <input type="file" name="excel_file" accept=".xlsx" required class="form-control form-control-sm mb-2">
+        <button type="submit" class="btn btn-success">&#10003; Confirm Import ({{ preview|length }} rows)</button>
+        <a href="{% url 'ilm_import' %}" class="btn btn-outline-secondary ms-1">Cancel</a>
+      </form>
+    </div>
+  </div>
+
+  <!-- Status counts -->
+  <div class="d-flex gap-2 flex-wrap mb-3">
+    {% for s in preview|dictsortreversed:"move_status" %}{% endfor %}
+    <span style="font-size:12px;color:#64748b">Rig: <strong>{{ request.POST.rig }}</strong></span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table-clean" style="font-size:11px">
+      <thead>
+        <tr><th>#</th><th>Sheet</th><th>Date</th><th>Status</th><th>From</th><th>To</th>
+          <th>Dist</th><th>Exp Hrs</th><th>Actual Hrs</th><th>Extra</th><th>Saving</th>
+          <th>Trailers</th><th>T.Loss</th><th>T.Vendor</th><th>Crane</th><th>Remarks</th></tr>
+      </thead>
+      <tbody>
+        {% for r in preview %}
+        <tr style="{% if forloop.counter|divisibleby:2 %}background:#f8fafc{% endif %}">
+          <td class="text-muted">{{ forloop.counter }}</td>
+          <td style="color:#64748b">{{ r.sheet }}</td>
+          <td>{{ r.date }}</td>
+          <td><span class="badge-{% if r.move_status == 'Active' %}active{% elif r.move_status == 'Standby' %}standby{% elif r.move_status == 'Internal' %}internal{% else %}idle{% endif %}" style="font-size:10px">{{ r.move_status }}</span></td>
+          <td>{{ r.ilm_from_location|default:"—" }}</td>
+          <td>{{ r.ilm_to_location|default:"—" }}</td>
+          <td>{{ r.distance_kms|default:"—" }}</td>
+          <td>{{ r.expected_ilm_hrs|default:"—" }}</td>
+          <td style="font-weight:{% if r.during_ilm_hrs %}700{% else %}normal{% endif %}">
+            {% if r.during_ilm_hrs %}{{ r.during_ilm_hrs }}{% else %}—{% endif %}
+          </td>
+          <td style="color:{% if r.rig_move_extra_hrs > 0 %}#dc2626{% else %}inherit{% endif %}">
+            {% if r.rig_move_extra_hrs > 0 %}{{ r.rig_move_extra_hrs }}{% else %}—{% endif %}
+          </td>
+          <td style="color:{% if r.rig_move_saving_hrs > 0 %}#16a34a{% else %}inherit{% endif %}">
+            {% if r.rig_move_saving_hrs > 0 %}{{ r.rig_move_saving_hrs }}{% else %}—{% endif %}
+          </td>
+          <td>{% if r.trailer_reported %}{{ r.trailer_reported }}{% else %}—{% endif %}</td>
+          <td style="color:{% if r.trailer_loss > 0 %}#dc2626{% else %}inherit{% endif %}">
+            {% if r.trailer_loss > 0 %}{{ r.trailer_loss }}{% else %}—{% endif %}
+          </td>
+          <td>{{ r.trailer_vendor|default:"—" }}</td>
+          <td>{{ r.crane_reported|default:"—" }}</td>
+          <td style="max-width:120px">{{ r.remarks|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

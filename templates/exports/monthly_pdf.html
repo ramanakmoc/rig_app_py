@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 1.5cm; }
+  body { font-family: Arial, sans-serif; font-size: 9px; color: #1a202c; }
+  h1 { font-size: 16px; color: #0B3D6D; margin: 0 0 4px 0; }
+  .meta { font-size: 8px; color: #718096; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background-color: #0B3D6D; color: #ffffff; }
+  thead th { padding: 6px 5px; text-align: center; font-size: 8px; }
+  tbody tr:nth-child(even) { background-color: #f8fafc; }
+  tbody tr:nth-child(odd)  { background-color: #ffffff; }
+  tbody td { padding: 5px; border: 1px solid #e2e8f0; text-align: center; }
+  .eff-good { color: #276749; font-weight: bold; }
+  .eff-mid  { color: #B7791F; font-weight: bold; }
+  .eff-bad  { color: #C53030; font-weight: bold; }
+  .footer { margin-top: 10px; font-size: 7px; color: #a0aec0; text-align: right; }
+  .no-data { text-align: center; padding: 20px; color: #718096; }
+</style>
+</head>
+<body>
+<h1>KRISS Drilling — Monthly Rig Log Report</h1>
+<div class="meta">Generated: {{ generated|date:"d M Y, H:i" }}</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Month</th>
+      <th>Rig</th>
+      <th>Entries</th>
+      <th>Operating Hrs</th>
+      <th>Standby Hrs</th>
+      <th>Breakdown Hrs</th>
+      <th>ILM Hrs</th>
+      <th>Zero Rate Hrs</th>
+      <th>Total Hrs</th>
+      <th>Efficiency %</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in monthly %}
+    {% with total=m.op_hrs|add:m.sb_hrs|add:m.bd_hrs|add:m.ilm_hrs|add:m.zr_hrs %}
+    <tr>
+      <td>{{ m.month|date:"M Y" }}</td>
+      <td>{{ m.rig }}</td>
+      <td>{{ m.entries }}</td>
+      <td>{{ m.op_hrs }}</td>
+      <td>{{ m.sb_hrs }}</td>
+      <td>{{ m.bd_hrs }}</td>
+      <td>{{ m.ilm_hrs }}</td>
+      <td>{{ m.zr_hrs }}</td>
+      <td>{{ total }}</td>
+      <td>
+        {% if total > 0 %}
+          {% widthratio m.op_hrs total 100 as eff %}
+          <span class="{% if eff >= 80 %}eff-good{% elif eff >= 50 %}eff-mid{% else %}eff-bad{% endif %}">
+            {{ eff }}%
+          </span>
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endwith %}
+    {% empty %}
+    <tr><td colspan="10" class="no-data">No records found for the selected filters.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="footer">KRISS Drilling Rig App &nbsp;|&nbsp; Confidential</div>
+</body>
+</html>

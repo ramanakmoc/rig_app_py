@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128197; Daily Report</h3>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'add_entry' %}" class="btn btn-success btn-sm">&#10010; Add Entry</a>
+    <form method="post" action="{% url 'export_pdf_daily' %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="rig"  value="{{ filters.rig }}">
+      <input type="hidden" name="from" value="{{ filters.from }}">
+      <input type="hidden" name="to"   value="{{ filters.to }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm">&#8595; PDF</button>
+    </form>
+    <form method="post" action="{% url 'export_excel' %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="rig"  value="{{ filters.rig }}">
+      <input type="hidden" name="from" value="{{ filters.from }}">
+      <input type="hidden" name="to"   value="{{ filters.to }}">
+      <button type="submit" class="btn btn-outline-success btn-sm">&#8595; Excel</button>
+    </form>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6">
+      <label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All</option>
+        <option value="Running"   {% if filters.status == "Running"   %}selected{% endif %}>Running</option>
+        <option value="Standby"   {% if filters.status == "Standby"   %}selected{% endif %}>Standby</option>
+        <option value="Breakdown" {% if filters.status == "Breakdown" %}selected{% endif %}>Breakdown</option>
+      </select>
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">From Date</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">To Date</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'daily_report' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- SUMMARY STATS -->
+<div class="row g-3 mb-3">
+  <div class="col-md-2 col-4"><div class="stat-card blue"><h6>Operating</h6><h2>{{ stats.total_op|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card amber"><h6>Standby</h6><h2>{{ stats.total_sb|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card red"><h6>Breakdown</h6><h2>{{ stats.total_bd|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card teal"><h6>ILM</h6><h2>{{ stats.total_ilm|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card purple"><h6>Zero Rate</h6><h2>{{ stats.total_zr|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card green"><h6>Entries</h6><h2>{{ stats.entries|default:"0" }}</h2></div></div>
+</div>
+
+<!-- TABLE -->
+<div class="card-box">
+  <div class="section-title">Detailed Entries ({{ entries|length }})</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead>
+        <tr>
+          <th>Date</th><th>Rig</th><th>Status</th>
+          <th>Op Hrs</th><th>SB Hrs</th><th>BD Hrs</th><th>ILM Hrs</th><th>Zero Rate</th><th>Total</th>
+          <th>Reason</th><th>Created By</th>
+          {% if request.user.profile.role != 'viewer' %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td>{{ e.date }}</td>
+          <td><strong>{{ e.rig }}</strong></td>
+          <td><span class="badge-{{ e.status|lower }}">{{ e.status }}</span></td>
+          <td style="color:#1d4ed8;font-weight:600">{{ e.operating_hours }}</td>
+          <td>{{ e.standby_hours }}</td>
+          <td style="color:{% if e.breakdown_hours > 0 %}#dc2626{% else %}inherit{% endif %}">{{ e.breakdown_hours }}</td>
+          <td>{{ e.ilm_hours }}</td>
+          <td style="color:{% if e.zero_rate_hours > 0 %}#dc2626;font-weight:700{% else %}inherit{% endif %}">{{ e.zero_rate_hours }}</td>
+          <td style="font-weight:600">{{ e.total_hours|floatformat:2 }}</td>
+          <td style="font-size:12px;color:#64748b;max-width:160px">{{ e.reason|default:"—"|truncatechars:60 }}</td>
+          <td style="font-size:12px;color:#64748b">{{ e.created_by.username|default:"—" }}</td>
+          {% if request.user.profile.role != 'viewer' %}
+          <td style="white-space:nowrap">
+            <a href="{% url 'edit_entry' e.pk %}" class="btn btn-outline-primary btn-sm py-0">Edit</a>
+            {% if request.user.profile.role == 'admin' %}
+            <form method="post" action="{% url 'delete_entry' e.pk %}" style="display:inline"
+                  onsubmit="return confirm('Delete entry for {{ e.rig }} on {{ e.date }}?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="13" class="text-center text-muted py-5">
+            <p style="font-size:36px">&#128202;</p>
+            No entries found. <a href="{% url 'add_entry' %}">Add the first entry.</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

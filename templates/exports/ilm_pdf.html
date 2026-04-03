@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 1.5cm; }
+  body { font-family: Arial, sans-serif; font-size: 8px; color: #1a202c; }
+  h1 { font-size: 15px; color: #0B3D6D; margin: 0 0 4px 0; }
+  .meta { font-size: 7px; color: #718096; margin-bottom: 8px; }
+  .stats { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .stat-box { background: #EBF4FF; border: 1px solid #BEE3F8; border-radius: 4px;
+              padding: 5px 10px; text-align: center; min-width: 80px; }
+  .stat-box .val { font-size: 13px; font-weight: bold; color: #0B3D6D; }
+  .stat-box .lbl { font-size: 7px; color: #4A5568; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background-color: #0B3D6D; color: #ffffff; }
+  thead th { padding: 5px 4px; text-align: center; font-size: 7px; }
+  tbody tr:nth-child(even) { background-color: #f8fafc; }
+  tbody tr:nth-child(odd)  { background-color: #ffffff; }
+  tbody td { padding: 4px; border: 1px solid #e2e8f0; text-align: center; font-size: 7.5px; }
+  td.left { text-align: left; }
+  .status-active   { color: #276749; font-weight: bold; }
+  .status-standby  { color: #B7791F; font-weight: bold; }
+  .status-internal { color: #2B6CB0; font-weight: bold; }
+  .status-idle     { color: #C53030; font-weight: bold; }
+  .footer { margin-top: 10px; font-size: 7px; color: #a0aec0; text-align: right; }
+  .no-data { text-align: center; padding: 20px; color: #718096; }
+</style>
+</head>
+<body>
+
+<h1>KRISS Drilling — ILM Report</h1>
+<div class="meta">
+  Generated: {{ generated|date:"d M Y, H:i" }}
+  {% if filters.rig %}    &nbsp;|&nbsp; Rig: {{ filters.rig }}{% endif %}
+  {% if filters.month %}  &nbsp;|&nbsp; Month: {{ filters.month }}{% endif %}
+  {% if filters.from %}   &nbsp;|&nbsp; From: {{ filters.from }}{% endif %}
+  {% if filters.to %}     &nbsp;|&nbsp; To: {{ filters.to }}{% endif %}
+  {% if filters.status %} &nbsp;|&nbsp; Status: {{ filters.status }}{% endif %}
+</div>
+
+<div class="stats">
+  <div class="stat-box"><div class="val">{{ stats.total|default:"0" }}</div><div class="lbl">Total Entries</div></div>
+  <div class="stat-box"><div class="val">{{ stats.moves|default:"0" }}</div><div class="lbl">Actual Moves</div></div>
+  <div class="stat-box"><div class="val">{{ stats.hrs|default:"0"|floatformat:1 }}</div><div class="lbl">ILM Hours</div></div>
+  <div class="stat-box"><div class="val">{{ stats.extra|default:"0"|floatformat:1 }}</div><div class="lbl">Extra Hrs</div></div>
+  <div class="stat-box"><div class="val">{{ stats.saving|default:"0"|floatformat:1 }}</div><div class="lbl">Saving Hrs</div></div>
+  <div class="stat-box"><div class="val">{{ stats.trailers|default:"0" }}</div><div class="lbl">Trailers</div></div>
+  <div class="stat-box"><div class="val">{{ stats.t_loss|default:"0" }}</div><div class="lbl">Trailer Loss</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Rig</th>
+      <th>Status</th>
+      <th>From</th>
+      <th>To</th>
+      <th>Dist KM</th>
+      <th>Exp Hrs</th>
+      <th>Actual Hrs</th>
+      <th>Extra Hrs</th>
+      <th>Saving Hrs</th>
+      <th>Trailers</th>
+      <th>T.Loss</th>
+      <th>T.Vendor</th>
+      <th>Crane</th>
+      <th>C.Vendor</th>
+      <th>Remarks</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td>{{ e.date|date:"d-M-Y" }}</td>
+      <td>{{ e.rig }}</td>
+      <td>
+        <span class="status-{{ e.move_status|lower }}">{{ e.move_status }}</span>
+      </td>
+      <td class="left">{{ e.ilm_from_location|default:"—" }}</td>
+      <td class="left">{{ e.ilm_to_location|default:"—" }}</td>
+      <td>{{ e.distance_kms|default:"—" }}</td>
+      <td>{{ e.expected_ilm_hrs|default:"—" }}</td>
+      <td>{{ e.during_ilm_hrs|default:"—" }}</td>
+      <td>{{ e.rig_move_extra_hrs|default:"0" }}</td>
+      <td>{{ e.rig_move_saving_hrs|default:"0" }}</td>
+      <td>{{ e.trailer_reported|default:"0" }}</td>
+      <td>{{ e.trailer_loss|default:"0" }}</td>
+      <td class="left">{{ e.trailer_vendor|default:"—" }}</td>
+      <td>{{ e.crane_reported|default:"—" }}</td>
+      <td class="left">{{ e.crane_vendor|default:"—" }}</td>
+      <td class="left">{{ e.remarks|default:"—" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="16" class="no-data">No ILM records found for the selected filters.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="footer">KRISS Drilling Rig App &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; ILM Report</div>
+</body>
+</html>

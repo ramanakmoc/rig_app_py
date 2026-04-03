@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header"><h3>&#128100; My Profile</h3></div>
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Account Details</div>
+      <div style="text-align:center;padding:20px 0">
+        <div style="width:72px;height:72px;border-radius:50%;background:#0b3d6d;color:#fff;
+                    font-size:28px;font-weight:700;display:flex;align-items:center;
+                    justify-content:center;margin:0 auto 14px">
+          {{ request.user.username|slice:":1"|upper }}
+        </div>
+        <div style="font-size:18px;font-weight:700;color:#1e293b">{{ request.user.username }}</div>
+        <div style="margin-top:6px">
+          <span style="background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;
+                       padding:3px 14px;border-radius:20px;text-transform:uppercase">
+            {{ request.user.profile.role|default:"viewer" }}
+          </span>
+        </div>
+      </div>
+      <table style="width:100%;font-size:13px;border-collapse:collapse">
+        <tr><td style="color:#64748b;padding:6px 0;width:40%">User ID</td>
+            <td style="font-weight:600">#{{ request.user.pk }}</td></tr>
+        <tr><td style="color:#64748b;padding:6px 0">Username</td>
+            <td style="font-weight:600">{{ request.user.username }}</td></tr>
+        <tr><td style="color:#64748b;padding:6px 0">Member Since</td>
+            <td style="font-weight:600">{{ request.user.date_joined|date:"d M Y" }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Change Password</div>
+      <form method="POST">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Current Password</label>
+          <input type="password" name="current_password" class="form-control" required autocomplete="current-password">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">New Password</label>
+          <input type="password" name="new_password" class="form-control" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Confirm New Password</label>
+          <input type="password" name="confirm_password" class="form-control" required minlength="6" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-success w-100">Update Password</button>
+      </form>
+    </div>
+  </div>
+
+  {% if recent %}
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">My Recent Entries</div>
+      {% for e in recent %}
+      <div style="padding:8px 0;border-bottom:1px solid #f1f5f9">
+        <div style="display:flex;justify-content:space-between">
+          <strong>{{ e.rig }}</strong>
+          <span class="badge-{{ e.status|lower }}" style="font-size:10px">{{ e.status }}</span>
+        </div>
+        <div style="font-size:12px;color:#64748b">{{ e.date }} &nbsp;·&nbsp; Op: {{ e.operating_hours }}h</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

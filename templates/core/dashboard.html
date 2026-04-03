@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block extra_js %}
+<!-- Load Chart.js fresh in this page — guarantees it's ready before our code -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// All data pre-serialized as JSON from Django view
+const trendLabels  = {{ trend_labels_json | safe }};
+const trendOp      = {{ trend_op_json | safe }};
+const trendSb      = {{ trend_sb_json | safe }};
+const trendBd      = {{ trend_bd_json | safe }};
+const trendIlm     = {{ trend_ilm_json | safe }};
+const trendZr      = {{ trend_zr_json | safe }};
+const donutLabels  = {{ donut_labels_json | safe }};
+const donutData    = {{ donut_data_json | safe }};
+
+window.addEventListener('load', function() {
+  // Small delay ensures all layout is computed
+  setTimeout(function() {
+
+    // ── OPERATIONAL TREND LINE CHART ──
+    const trendEl = document.getElementById('trendChart');
+    if (trendEl) {
+      new Chart(trendEl, {
+        type: 'line',
+        data: {
+          labels: trendLabels,
+          datasets: [
+            { label:'Operating', data:trendOp,  borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.12)', fill:true,  tension:0.4, pointRadius:2, borderWidth:2 },
+            { label:'Standby',   data:trendSb,  borderColor:'#f59e0b', backgroundColor:'transparent',          fill:false, tension:0.4, pointRadius:2, borderWidth:1.5 },
+            { label:'Breakdown', data:trendBd,  borderColor:'#ef4444', backgroundColor:'transparent',          fill:false, tension:0.4, pointRadius:2, borderWidth:1.5 },
+            { label:'ILM',       data:trendIlm, borderColor:'#8b5cf6', backgroundColor:'transparent',          fill:false, tension:0.4, pointRadius:2, borderWidth:1.5 },
+            { label:'Zero Rate', data:trendZr,  borderColor:'#1e293b', backgroundColor:'transparent',          fill:false, tension:0.4, pointRadius:2, borderWidth:1.5 },
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode:'index', intersect:false },
+          plugins: {
+            legend: { position:'bottom', labels:{ boxWidth:12, font:{size:11}, padding:12 } },
+            tooltip: { mode:'index' }
+          },
+          scales: {
+            x: { ticks:{ font:{size:10}, maxRotation:45, maxTicksLimit:16 }, grid:{ color:'rgba(0,0,0,0.04)' } },
+            y: { ticks:{ font:{size:11} }, grid:{ color:'rgba(0,0,0,0.04)' } }
+          }
+        }
+      });
+    }
+
+    // ── DOWNTIME DONUT ──
+    const donutEl = document.getElementById('donutChart');
+    if (donutEl) {
+      const totalHrs = donutData.reduce(function(a,b){ return a+b; }, 0);
+      new Chart(donutEl, {
+        type: 'doughnut',
+        data: {
+          labels: donutLabels,
+          datasets: [{
+            data: donutData,
+            backgroundColor: ['#22c55e','#f59e0b','#ef4444','#8b5cf6','#1e293b'],
+            borderColor: '#ffffff',
+            borderWidth: 3,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '60%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 12, font: { size: 11 }, padding: 8,
+                generateLabels: function(chart) {
+                  return chart.data.labels.map(function(label, i) {
+                    const val = chart.data.datasets[0].data[i];
+                    const pct = totalHrs > 0 ? (val/totalHrs*100).toFixed(1) : '0';
+                    return {
+                      text: label + ' (' + pct + '%)',
+                      fillStyle: chart.data.datasets[0].backgroundColor[i],
+                      strokeStyle: '#fff', lineWidth: 1, index: i
+                    };
+                  });
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const pct = totalHrs > 0 ? (ctx.parsed/totalHrs*100).toFixed(1) : '0';
+                  return ' ' + ctx.label + ': ' + ctx.parsed.toFixed(1) + 'h (' + pct + '%)';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+  }, 200); // 200ms delay — enough for layout to compute
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<!-- PAGE HEADER -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+  <h3 style="font-size:20px;font-weight:700;color:#0b3d6d;margin:0">Rig Monitoring Dashboard</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <form method="GET" id="filterForm" style="display:flex;gap:8px;align-items:center">
+      <select name="rig" class="form-select form-select-sm" style="width:130px" onchange="document.getElementById('filterForm').submit()">
+        <option value="">All Rigs</option>
+        {% for r in all_rigs %}
+        <option value="{{ r }}" {% if rig_filter == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+      <select name="period" class="form-select form-select-sm" style="width:140px" onchange="document.getElementById('filterForm').submit()">
+        <option value="week"   {% if time_filter == 'week'   %}selected{% endif %}>Last 7 Days</option>
+        <option value="month"  {% if time_filter == 'month'  %}selected{% endif %}>This Month</option>
+        <option value="3month" {% if time_filter == '3month' %}selected{% endif %}>Last 3 Months</option>
+        <option value="year"   {% if time_filter == 'year'   %}selected{% endif %}>This Year</option>
+        <option value="all"    {% if time_filter == 'all'    %}selected{% endif %}>All Time</option>
+      </select>
+    </form>
+    <a href="{% url 'add_entry' %}" class="btn btn-success btn-sm">+ Add Entry</a>
+  </div>
+</div>
+
+<!-- ── STAT CARDS ── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-2 col-6">
+    <div class="stat-card blue">
+      <h6>Active Rigs</h6><h2>{{ active_rigs_count }}</h2>
+      <small>{{ stats.entries }} entries</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card green">
+      <h6>Operating Hrs</h6><h2>{{ stats.total_op|floatformat:1 }}</h2>
+      <small>{{ period_label }}</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card amber">
+      <h6>Standby Hrs</h6><h2>{{ stats.total_sb|floatformat:1 }}</h2>
+      <small>&nbsp;</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card red">
+      <h6>Breakdown Hrs</h6><h2>{{ stats.total_bd|floatformat:1 }}</h2>
+      <small>&nbsp;</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card purple">
+      <h6>Zero Rate Hrs</h6><h2>{{ stats.total_zr|floatformat:1 }}</h2>
+      <small>{{ zero_rate_count }} days</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card {% if fleet_efficiency >= 70 %}green{% elif fleet_efficiency >= 50 %}amber{% else %}red{% endif %}">
+      <h6>Fleet Efficiency</h6><h2>{{ fleet_efficiency }}%</h2>
+      <small>{{ days_count }} day(s) × {{ rigs_count }} rig(s)</small>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHARTS ── -->
+<div class="row g-4 mb-4">
+  <!-- Trend line chart -->
+  <div class="col-md-8">
+    <div class="card-box">
+      <div class="section-title">Operational Trend</div>
+      <div style="position:relative;width:100%;height:280px">
+        <canvas id="trendChart" style="position:absolute;top:0;left:0;width:100%!important;height:100%!important"></canvas>
+      </div>
+    </div>
+  </div>
+  <!-- Downtime donut -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Downtime Analysis</div>
+      <div style="position:relative;width:100%;height:280px">
+        <canvas id="donutChart" style="position:absolute;top:0;left:0;width:100%!important;height:100%!important"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── RIG PERFORMANCE TABLE ── -->
+<div class="card-box mb-4">
+  <div class="section-title">Rig-wise Performance — {{ period_label }}</div>
+  {% if rig_summary %}
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead>
+        <tr><th>Rig</th><th>Operating Hrs</th><th>Standby Hrs</th><th>Breakdown Hrs</th><th>ILM Hrs</th><th>Zero Rate Hrs</th><th>Entries</th><th>Efficiency</th><th>Bar</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rig_summary %}
+        <tr>
+          <td><strong>{{ r.rig }}</strong></td>
+          <td style="color:#1d4ed8;font-weight:600">{{ r.op_hrs|floatformat:1 }}</td>
+          <td style="color:#d97706">{{ r.sb_hrs|floatformat:1 }}</td>
+          <td style="color:{% if r.bd_hrs > 0 %}#dc2626{% else %}#94a3b8{% endif %}">{{ r.bd_hrs|floatformat:1 }}</td>
+          <td>{{ r.ilm_hrs|floatformat:1 }}</td>
+          <td style="color:{% if r.zr_hrs > 0 %}#7c3aed;font-weight:700{% else %}#94a3b8{% endif %}">{{ r.zr_hrs|floatformat:1 }}</td>
+          <td>{{ r.entries }}</td>
+          <td><span style="font-weight:700;font-size:15px;color:{% if r.efficiency >= 70 %}#16a34a{% elif r.efficiency >= 50 %}#d97706{% else %}#dc2626{% endif %}">{{ r.efficiency }}%</span></td>
+          <td style="min-width:160px">
+            <div class="progress" style="height:8px">
+              {% if r.op_hrs > 0 %}<div class="progress-bar bg-success" style="width:{% widthratio r.op_hrs 24 100 %}%"></div>{% endif %}
+              {% if r.sb_hrs > 0 %}<div class="progress-bar bg-warning" style="width:{% widthratio r.sb_hrs 24 100 %}%"></div>{% endif %}
+              {% if r.bd_hrs > 0 %}<div class="progress-bar bg-danger"  style="width:{% widthratio r.bd_hrs 24 100 %}%"></div>{% endif %}
+              {% if r.ilm_hrs > 0 %}<div class="progress-bar bg-info"   style="width:{% widthratio r.ilm_hrs 24 100 %}%"></div>{% endif %}
+              {% if r.zr_hrs > 0 %}<div class="progress-bar" style="width:{% widthratio r.zr_hrs 24 100 %}%;background:#8b5cf6"></div>{% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted text-center py-4">No entries for this period. Select a wider period or add entries.</p>
+  {% endif %}
+</div>
+
+<!-- ── RECENT ENTRIES ── -->
+<div class="card-box">
+  <div class="section-title d-flex justify-content-between align-items-center">
+    Recent Entries
+    <a href="{% url 'daily_report' %}" style="font-size:12px;font-weight:400;color:#3b82f6">View all →</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead>
+        <tr><th>Date</th><th>Rig</th><th>Status</th><th>Op Hrs</th><th>SB Hrs</th><th>BD Hrs</th><th>ILM Hrs</th><th>Zero Rate</th><th>Created By</th></tr>
+      </thead>
+      <tbody>
+        {% for e in latest_entries %}
+        <tr>
+          <td>{{ e.date }}</td>
+          <td><strong>{{ e.rig }}</strong></td>
+          <td><span class="badge-{{ e.status|lower }}">{{ e.status }}</span></td>
+          <td style="color:#1d4ed8;font-weight:600">{{ e.operating_hours }}</td>
+          <td>{{ e.standby_hours }}</td>
+          <td style="color:{% if e.breakdown_hours > 0 %}#dc2626{% else %}inherit{% endif %}">{{ e.breakdown_hours }}</td>
+          <td>{{ e.ilm_hours }}</td>
+          <td style="color:{% if e.zero_rate_hours > 0 %}#7c3aed;font-weight:700{% else %}inherit{% endif %}">{{ e.zero_rate_hours }}</td>
+          <td style="font-size:12px;color:#64748b">{{ e.created_by.username|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-4">No entries yet. <a href="{% url 'add_entry' %}">Add the first entry.</a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

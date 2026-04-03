@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128100; User Management</h3>
+  <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">&#43; Create User</button>
+</div>
+
+<div class="card-box">
+  <div class="section-title">All Users ({{ users|length }})</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead>
+        <tr><th>#</th><th>Username</th><th>Role</th><th>Member Since</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td class="text-muted" style="font-size:12px">{{ forloop.counter }}</td>
+          <td>
+            <div style="width:32px;height:32px;border-radius:50%;background:#0b3d6d;color:#fff;
+                        display:inline-flex;align-items:center;justify-content:center;
+                        font-weight:700;font-size:14px;margin-right:8px">
+              {{ u.username|slice:":1"|upper }}
+            </div>
+            <strong>{{ u.username }}</strong>
+            {% if u == request.user %}<span class="badge-active ms-1">You</span>{% endif %}
+          </td>
+          <td>
+            {% with role=u.profile.role|default:"viewer" %}
+            <span style="background:{% if role == 'admin' %}#fee2e2;color:#991b1b{% elif role == 'supervisor' %}#fef9c3;color:#854d0e{% else %}#f0fdf4;color:#166534{% endif %};
+                         padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase">
+              {{ role }}
+            </span>
+            {% endwith %}
+          </td>
+          <td style="font-size:12px;color:#64748b">{{ u.date_joined|date:"d M Y" }}</td>
+          <td style="white-space:nowrap">
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0"
+                    onclick="openReset({{ u.pk }}, '{{ u.username }}')">Reset Pwd</button>
+            <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                    onclick="openRole({{ u.pk }}, '{{ u.username }}', '{{ u.profile.role|default:"viewer" }}')">Role</button>
+            {% if u != request.user %}
+            <button type="button" class="btn btn-outline-danger btn-sm py-0"
+                    onclick="openDel({{ u.pk }}, '{{ u.username }}')">Del</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ADD USER MODAL -->
+<div class="modal fade" id="addModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Create New User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="POST">
+        {% csrf_token %}<input type="hidden" name="action" value="create">
+        <div class="modal-body row g-3">
+          <div class="col-12"><label class="form-label">Username</label>
+            <input type="text" name="username" class="form-control" required maxlength="60" autocomplete="off"></div>
+          <div class="col-12"><label class="form-label">Password</label>
+            <input type="password" name="password" class="form-control" required minlength="6" autocomplete="new-password"></div>
+          <div class="col-12"><label class="form-label">Role</label>
+            <select name="role" class="form-select">
+              {% for val, label in roles %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- RESET PASSWORD MODAL -->
+<div class="modal fade" id="resetModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Reset Password — <span id="resetName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="POST">
+        {% csrf_token %}<input type="hidden" name="action" value="reset_password">
+        <input type="hidden" name="uid" id="resetUid">
+        <div class="modal-body">
+          <label class="form-label">New Password</label>
+          <input type="password" name="new_password" class="form-control" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning btn-sm">Reset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE ROLE MODAL -->
+<div class="modal fade" id="roleModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Change Role — <span id="roleName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="POST">
+        {% csrf_token %}<input type="hidden" name="action" value="change_role">
+        <input type="hidden" name="uid" id="roleUid">
+        <div class="modal-body">
+          <label class="form-label">Role</label>
+          <select name="role" id="roleSelect" class="form-select">
+            {% for val, label in roles %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE MODAL -->
+<div class="modal fade" id="delModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Delete User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="POST">
+        {% csrf_token %}<input type="hidden" name="action" value="delete">
+        <input type="hidden" name="uid" id="delUid">
+        <div class="modal-body">
+          <p>Delete user <strong id="delName"></strong>?</p>
+          <p class="text-danger small">This cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+function openReset(uid, name) {
+  document.getElementById('resetUid').value = uid;
+  document.getElementById('resetName').textContent = name;
+  new bootstrap.Modal(document.getElementById('resetModal')).show();
+}
+function openRole(uid, name, role) {
+  document.getElementById('roleUid').value = uid;
+  document.getElementById('roleName').textContent = name;
+  document.getElementById('roleSelect').value = role;
+  new bootstrap.Modal(document.getElementById('roleModal')).show();
+}
+function openDel(uid, name) {
+  document.getElementById('delUid').value = uid;
+  document.getElementById('delName').textContent = name;
+  new bootstrap.Modal(document.getElementById('delModal')).show();
+}
+</script>
+{% endblock %}
+{% endblock %}

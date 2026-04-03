@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#9651; Add HSD Receipt</h3>
+  <a href="{% url 'hsd_receipts' %}" class="btn btn-outline-secondary btn-sm">&#8592; Receipts</a>
+</div>
+
+<div class="card-box" style="max-width:760px">
+  <div class="section-title">Diesel Delivery / Receipt Details</div>
+  <form method="POST">
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-4 col-6">
+        <label class="form-label">Date <span class="text-danger">*</span></label>
+        <input type="date" name="date" class="form-control" value="{{ today }}" max="{{ today }}" required>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Rig / Location <span class="text-danger">*</span></label>
+        <select name="rig" class="form-select" required>
+          <option value="">— Select —</option>
+          {% for r in rigs %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Receipt / Challan No</label>
+        <input type="text" name="receipt_no" class="form-control" placeholder="e.g. CH-2026-0123">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Supplier Vendor</label>
+        <select name="supplier" class="form-select">
+          <option value="">— Select or enter below —</option>
+          {% for v in vendors %}<option value="{{ v.id }}">{{ v.vendor_code }} — {{ v.vendor_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Supplier Name (if not listed)</label>
+        <input type="text" name="supplier_name" class="form-control" placeholder="Manual entry">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Tanker Vehicle No</label>
+        <input type="text" name="vehicle_no" class="form-control text-uppercase" placeholder="e.g. RJ-14-GA-5678">
+      </div>
+      <div class="col-md-3 col-6">
+        <label class="form-label">Quantity (Litres) <span class="text-danger">*</span></label>
+        <input type="number" step="0.01" name="quantity_ltrs" class="form-control" min="1" required placeholder="0.00" oninput="calcAmount()">
+      </div>
+      <div class="col-md-3 col-6">
+        <label class="form-label">Rate per Litre (&#8377;)</label>
+        <input type="number" step="0.01" name="rate_per_ltr" class="form-control" id="rate" placeholder="0.00" oninput="calcAmount()">
+      </div>
+      <div class="col-md-3 col-6">
+        <label class="form-label">Invoice Amount (&#8377;)</label>
+        <input type="number" step="0.01" name="invoice_amount" class="form-control" id="invoice_amt" placeholder="Auto-calculated">
+      </div>
+      <div class="col-md-3 col-6">
+        <label class="form-label">Received By</label>
+        <input type="text" name="received_by" class="form-control" placeholder="Name">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Remarks</label>
+        <input type="text" name="remarks" class="form-control">
+      </div>
+    </div>
+    <div class="d-flex gap-2 mt-4">
+      <button type="submit" class="btn btn-success px-4">&#10003; Save Receipt</button>
+      <a href="{% url 'hsd_receipts' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% block extra_js %}
+<script>
+function calcAmount() {
+  const qty  = parseFloat(document.querySelector('[name=quantity_ltrs]').value) || 0;
+  const rate = parseFloat(document.getElementById('rate').value) || 0;
+  if (qty > 0 && rate > 0)
+    document.getElementById('invoice_amt').value = (qty * rate).toFixed(2);
+}
+document.querySelectorAll('input.text-uppercase').forEach(i =>
+  i.addEventListener('input', () => i.value = i.value.toUpperCase()));
+</script>
+{% endblock %}
+{% endblock %}

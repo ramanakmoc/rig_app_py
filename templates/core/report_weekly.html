@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128202; Weekly Report</h3>
+  <form method="post" action="{% url 'export_pdf_weekly' %}" style="display:inline">
+    {% csrf_token %}
+    <input type="hidden" name="rig"  value="{{ filters.rig }}">
+    <input type="hidden" name="from" value="{{ filters.from }}">
+    <input type="hidden" name="to"   value="{{ filters.to }}">
+    <button type="submit" class="btn btn-outline-danger btn-sm">&#8595; PDF</button>
+  </form>
+</div>
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6"><label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'weekly_report' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+<div class="card-box">
+  <div class="section-title">Weekly Summary</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead><tr><th>Week Starting</th><th>Rig</th><th>Op Hrs</th><th>SB Hrs</th><th>BD Hrs</th><th>ILM Hrs</th><th>Zero Rate</th><th>Entries</th><th>Efficiency %</th></tr></thead>
+      <tbody>
+        {% for w in weekly %}
+        {% with total=w.op_hrs|add:w.sb_hrs|add:w.bd_hrs|add:w.ilm_hrs|add:w.zr_hrs %}
+        <tr>
+          <td>{{ w.week|date:"d M Y" }}</td>
+          <td><strong>{{ w.rig }}</strong></td>
+          <td style="color:#1d4ed8;font-weight:600">{{ w.op_hrs|floatformat:1 }}</td>
+          <td>{{ w.sb_hrs|floatformat:1 }}</td>
+          <td style="color:{% if w.bd_hrs > 0 %}#dc2626{% else %}inherit{% endif %}">{{ w.bd_hrs|floatformat:1 }}</td>
+          <td>{{ w.ilm_hrs|floatformat:1 }}</td>
+          <td style="color:{% if w.zr_hrs > 0 %}#dc2626{% else %}inherit{% endif %}">{{ w.zr_hrs|floatformat:1 }}</td>
+          <td>{{ w.entries }}</td>
+          <td>
+            {% if total > 0 %}
+              {% widthratio w.op_hrs total 100 %}%
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-4">No data found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

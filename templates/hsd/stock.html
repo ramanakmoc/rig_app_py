@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128230; HSD Daily Stock</h3>
+</div>
+<div class="card-box">
+  <div class="section-title">Daily Stock Reconciliation</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead><tr><th>Date</th><th>Rig</th><th>Opening (L)</th><th>Received (L)</th><th>Issued (L)</th><th>Closing (L)</th><th>Remarks</th></tr></thead>
+      <tbody>
+        {% for s in stock %}
+        <tr>
+          <td>{{ s.date }}</td>
+          <td><strong>{{ s.rig }}</strong></td>
+          <td>{{ s.opening_stock|floatformat:1 }}</td>
+          <td style="color:#16a34a;font-weight:600">{{ s.receipts|floatformat:1 }}</td>
+          <td style="color:#dc2626;font-weight:600">{{ s.consumption|floatformat:1 }}</td>
+          <td style="color:#1d4ed8;font-weight:700;font-size:15px">{{ s.closing_stock|floatformat:1 }}</td>
+          <td style="font-size:12px;color:#64748b">{{ s.remarks|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No stock data. Add receipts and issues first.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#9888; Zero Rate Alerts</h3>
+</div>
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6"><label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'alerts' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6"><div class="stat-card red"><h6>Total Zero Rate Hrs</h6><h2>{{ total_zero|floatformat:1 }}</h2></div></div>
+  <div class="col-md-3 col-6"><div class="stat-card amber"><h6>Affected Days</h6><h2>{{ zero_entries|length }}</h2></div></div>
+</div>
+{% if rig_zero %}
+<div class="card-box mb-3">
+  <div class="section-title">By Rig</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead><tr><th>Rig</th><th>Total Zero Rate Hrs</th><th>Days Affected</th></tr></thead>
+      <tbody>
+        {% for r in rig_zero %}
+        <tr>
+          <td><strong>{{ r.rig }}</strong></td>
+          <td style="color:#dc2626;font-weight:700">{{ r.total_zr|floatformat:2 }}</td>
+          <td>{{ r.days }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+<div class="card-box">
+  <div class="section-title">All Zero Rate Entries</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead><tr><th>Date</th><th>Rig</th><th>Status</th><th>Zero Rate Hrs</th><th>Operating Hrs</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for e in zero_entries %}
+        <tr>
+          <td>{{ e.date }}</td>
+          <td><strong>{{ e.rig }}</strong></td>
+          <td><span class="badge-{{ e.status|lower }}">{{ e.status }}</span></td>
+          <td style="color:#dc2626;font-weight:700">{{ e.zero_rate_hours }}</td>
+          <td>{{ e.operating_hours }}</td>
+          <td style="font-size:12px;color:#64748b">{{ e.reason|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No zero rate entries found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#10010; Add Daily Entry</h3>
+  <a href="{% url 'daily_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; Report</a>
+</div>
+
+<div class="card-box" style="max-width:780px">
+  <div class="section-title">Rig Hours Entry</div>
+  <form method="POST" id="entryForm">
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-4 col-6">
+        <label class="form-label">Date <span class="text-danger">*</span></label>
+        <input type="date" name="date" class="form-control"
+               value="{{ post.date|default:today }}" max="{{ today }}" required>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Rig <span class="text-danger">*</span></label>
+        <select name="rig" class="form-select" required>
+          <option value="">— Select Rig —</option>
+          {% for r in rigs %}
+          <option value="{{ r }}" {% if post.rig == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Status <span class="text-danger">*</span></label>
+        <select name="status" class="form-select">
+          <option value="Running"   {% if post.status == "Running"   %}selected{% endif %}>Running</option>
+          <option value="Standby"   {% if post.status == "Standby"   %}selected{% endif %}>Standby</option>
+          <option value="Breakdown" {% if post.status == "Breakdown" %}selected{% endif %}>Breakdown</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Hours grid -->
+    <div class="row g-3 mt-1">
+      <div class="col-md-4 col-6">
+        <label class="form-label">Operating Hours</label>
+        <input type="number" step="0.01" name="operating_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ post.operating_hours|default:'0' }}"
+               oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Standby Hours</label>
+        <input type="number" step="0.01" name="standby_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ post.standby_hours|default:'0' }}"
+               oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Breakdown Hours</label>
+        <input type="number" step="0.01" name="breakdown_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ post.breakdown_hours|default:'0' }}"
+               oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">ILM Hours</label>
+        <input type="number" step="0.01" name="ilm_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ post.ilm_hours|default:'0' }}"
+               oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Zero Rate Hours</label>
+        <input type="number" step="0.01" name="zero_rate_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ post.zero_rate_hours|default:'0' }}"
+               oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Total Hours</label>
+        <div id="totalBox" class="form-control" style="background:#f8fafc;font-weight:700;color:#0b3d6d">
+          0.00 / 24
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="mt-2 mb-2">
+      <div class="progress" style="height:10px">
+        <div id="opBar"  class="progress-bar bg-success" style="width:0%"  title="Operating"></div>
+        <div id="sbBar"  class="progress-bar bg-warning" style="width:0%"  title="Standby"></div>
+        <div id="bdBar"  class="progress-bar bg-danger"  style="width:0%"  title="Breakdown"></div>
+        <div id="ilmBar" class="progress-bar bg-info"    style="width:0%"  title="ILM"></div>
+        <div id="zrBar"  class="progress-bar"            style="width:0%;background:#8b5cf6" title="Zero Rate"></div>
+      </div>
+      <div id="totalMsg" style="font-size:11px;color:#64748b;margin-top:3px">
+        Enter hours above
+      </div>
+    </div>
+
+    <div class="col-12 mt-2">
+      <label class="form-label">Reason / Remarks</label>
+      <textarea name="reason" class="form-control" rows="2"
+                placeholder="Reason for standby, breakdown, or any remarks">{{ post.reason|default:"" }}</textarea>
+    </div>
+
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-success px-4">&#10003; Save Entry</button>
+      <a href="{% url 'daily_report' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% block extra_js %}
+<script>
+function updateTotal() {
+  const names = ['operating_hours','standby_hours','breakdown_hours','ilm_hours','zero_rate_hours'];
+  const bars  = ['opBar','sbBar','bdBar','ilmBar','zrBar'];
+  let total   = 0;
+  const vals  = names.map(n => {
+    const v = parseFloat(document.querySelector(`[name="${n}"]`).value) || 0;
+    total += v;
+    return v;
+  });
+  const box = document.getElementById('totalBox');
+  const msg = document.getElementById('totalMsg');
+  box.textContent = total.toFixed(2) + ' / 24';
+  if (total > 24) {
+    box.style.color = '#dc2626';
+    msg.textContent = `⚠ Total exceeds 24 hrs by ${(total-24).toFixed(2)}h — please correct`;
+    msg.style.color = '#dc2626';
+  } else if (total === 24) {
+    box.style.color = '#16a34a';
+    msg.textContent = '✓ Total is exactly 24 hours';
+    msg.style.color = '#16a34a';
+  } else {
+    box.style.color = '#0b3d6d';
+    msg.textContent = `${(24-total).toFixed(2)} hours remaining`;
+    msg.style.color = '#64748b';
+  }
+  bars.forEach((id, i) => {
+    document.getElementById(id).style.width = (vals[i]/24*100).toFixed(1) + '%';
+  });
+}
+updateTotal();
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128200; ILM Report</h3>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if request.user.profile.role != 'viewer' %}
+    <a href="{% url 'ilm_add' %}" class="btn btn-success btn-sm">&#43; Add Entry</a>
+    <a href="{% url 'ilm_import' %}" class="btn btn-outline-primary btn-sm">&#8679; Import Excel</a>
+    {% endif %}
+    <form method="post" action="{% url 'ilm_export_pdf' %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="rig"    value="{{ filters.rig }}">
+      <input type="hidden" name="from"   value="{{ filters.from }}">
+      <input type="hidden" name="to"     value="{{ filters.to }}">
+      <input type="hidden" name="month"  value="{{ filters.month }}">
+      <input type="hidden" name="status" value="{{ filters.status }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm">&#8595; PDF</button>
+    </form>
+    <form method="post" action="{% url 'ilm_export_excel' %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="rig"    value="{{ filters.rig }}">
+      <input type="hidden" name="from"   value="{{ filters.from }}">
+      <input type="hidden" name="to"     value="{{ filters.to }}">
+      <input type="hidden" name="month"  value="{{ filters.month }}">
+      <input type="hidden" name="status" value="{{ filters.status }}">
+      <button type="submit" class="btn btn-outline-success btn-sm">&#8595; Excel</button>
+    </form>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6"><label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for s in statuses %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">Month</label>
+      <input type="month" name="month" class="form-control form-control-sm" value="{{ filters.month }}">
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'ilm_report' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- STATS -->
+<div class="row g-3 mb-3">
+  <div class="col-md-2 col-4"><div class="stat-card blue"><h6>Entries</h6><h2>{{ stats.total_entries|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card teal"><h6>Actual Moves</h6><h2>{{ stats.actual_moves|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card blue"><h6>ILM Hrs</h6><h2>{{ stats.total_ilm_hrs|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card red"><h6>Extra Hrs</h6><h2>{{ stats.total_extra|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card green"><h6>Saving Hrs</h6><h2>{{ stats.total_saving|floatformat:1|default:"0" }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card amber"><h6>Trailer Loss</h6><h2>{{ stats.total_t_loss|default:"0" }}</h2></div></div>
+</div>
+
+<!-- RIG SUMMARY -->
+{% if rig_summary %}
+<div class="card-box mb-3">
+  <div class="section-title">Rig-wise Summary</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead><tr><th>Rig</th><th>Entries</th><th>ILM Hrs</th><th>Extra Hrs</th><th>Saving Hrs</th><th>Trailers</th><th>T.Loss</th></tr></thead>
+      <tbody>
+        {% for r in rig_summary %}
+        <tr>
+          <td><strong>{{ r.rig }}</strong></td>
+          <td>{{ r.entries }}</td>
+          <td>{{ r.total_hrs|floatformat:2|default:"—" }}</td>
+          <td style="color:{% if r.extra_hrs > 0 %}#dc2626;font-weight:700{% else %}inherit{% endif %}">{{ r.extra_hrs|floatformat:2|default:"0" }}</td>
+          <td style="color:{% if r.save_hrs > 0 %}#16a34a;font-weight:700{% else %}inherit{% endif %}">{{ r.save_hrs|floatformat:2|default:"0" }}</td>
+          <td>{{ r.trailers|default:"0" }}</td>
+          <td style="color:{% if r.t_loss > 0 %}#dc2626;font-weight:700{% else %}inherit{% endif %}">{{ r.t_loss|default:"0" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- DETAILED ENTRIES -->
+<div class="card-box">
+  <div class="section-title">Detailed ILM Entries ({{ entries|length }})</div>
+  {% if not entries %}
+  <div class="text-center py-5 text-muted">
+    <p style="font-size:36px">&#128200;</p>No ILM entries found.
+    {% if request.user.profile.role != 'viewer' %}<a href="{% url 'ilm_add' %}">Add first entry.</a>{% endif %}
+  </div>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table-clean" style="font-size:12px">
+      <thead>
+        <tr>
+          <th>Date</th><th>Rig</th><th>Status</th><th>From</th><th>To</th>
+          <th>Dist</th><th>Exp Hrs</th><th>Actual Hrs</th><th>Extra</th><th>Saving</th>
+          <th>Trailers</th><th>T.Loss</th><th>T.Vendor</th>
+          <th>Crane</th><th>C.Vendor</th>
+          <!-- NEW COLUMNS -->
+          <th style="background:#1e5a9a;min-width:160px">Trailer Nos &amp; Reg</th>
+          <th style="background:#1e5a9a;min-width:160px">Crane Nos &amp; Reg</th>
+          <th>Remarks</th>
+          {% if request.user.profile.role != 'viewer' %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        {% with trailers=e.equipment_usage.all cranes=e.equipment_usage.all %}
+        <tr>
+          <td style="white-space:nowrap">{{ e.date }}</td>
+          <td><strong>{{ e.rig }}</strong></td>
+          <td><span class="badge-{% if e.move_status == 'Active' %}active{% elif e.move_status == 'Standby' %}standby{% elif e.move_status == 'Internal' %}internal{% else %}idle{% endif %}">{{ e.move_status }}</span></td>
+          <td>{{ e.ilm_from_location|default:"—" }}</td>
+          <td>{{ e.ilm_to_location|default:"—" }}</td>
+          <td>{{ e.distance_kms|default:"—" }}</td>
+          <td>{{ e.expected_ilm_hrs|default:"—" }}</td>
+          <td style="font-weight:{% if e.during_ilm_hrs %}700;color:#0b3d6d{% else %}normal;color:#94a3b8{% endif %}">
+            {% if e.during_ilm_hrs %}{{ e.during_ilm_hrs|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td style="color:{% if e.rig_move_extra_hrs > 0 %}#dc2626;font-weight:700{% else %}inherit{% endif %}">
+            {% if e.rig_move_extra_hrs > 0 %}{{ e.rig_move_extra_hrs|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td style="color:{% if e.rig_move_saving_hrs > 0 %}#16a34a;font-weight:700{% else %}inherit{% endif %}">
+            {% if e.rig_move_saving_hrs > 0 %}{{ e.rig_move_saving_hrs|floatformat:2 }}{% else %}—{% endif %}
+          </td>
+          <td>{% if e.trailer_reported %}{{ e.trailer_reported }}{% else %}—{% endif %}</td>
+          <td style="color:{% if e.trailer_loss > 0 %}#dc2626{% else %}inherit{% endif %}">
+            {% if e.trailer_loss > 0 %}{{ e.trailer_loss }}{% else %}—{% endif %}
+          </td>
+          <td>{{ e.trailer_vendor|default:"—" }}</td>
+          <td>{{ e.crane_reported|default:"—" }}</td>
+          <td>{{ e.crane_vendor|default:"—" }}</td>
+
+          <!-- TRAILER REG NOS -->
+          <td style="background:#f0f9ff">
+            {% with t_usage=e.equipment_usage.all %}
+            {% for u in t_usage %}{% if u.role == 'Trailer' %}
+            <div style="white-space:nowrap;margin-bottom:2px">
+              <span style="background:#1d4ed8;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700">{{ u.equipment.equipment_no }}</span>
+              {% if u.equipment.registration_no %}
+              <span style="color:#475569;font-size:11px">{{ u.equipment.registration_no }}</span>
+              {% endif %}
+              {% if u.equipment.vendor %}<span style="color:#94a3b8;font-size:10px">({{ u.equipment.vendor.vendor_code }})</span>{% endif %}
+              {% if request.user.profile.role != 'viewer' %}
+              <form method="post" action="{% url 'ilm_remove_equipment' e.pk u.equipment.pk %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:10px;padding:0 2px" title="Remove">&#10005;</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endif %}{% endfor %}
+            {% if request.user.profile.role != 'viewer' %}
+            <button type="button" class="btn btn-outline-primary" style="font-size:10px;padding:1px 6px;margin-top:2px;border-radius:4px"
+                    onclick="openAddEq({{ e.pk }}, 'Trailer', '{{ e.rig }}', '{{ e.date }}')">
+              &#43; Add Trailer
+            </button>
+            {% endif %}
+            {% endwith %}
+          </td>
+
+          <!-- CRANE REG NOS -->
+          <td style="background:#fff7ed">
+            {% with c_usage=e.equipment_usage.all %}
+            {% for u in c_usage %}{% if u.role == 'Crane' %}
+            <div style="white-space:nowrap;margin-bottom:2px">
+              <span style="background:#d97706;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700">{{ u.equipment.equipment_no }}</span>
+              {% if u.equipment.registration_no %}
+              <span style="color:#475569;font-size:11px">{{ u.equipment.registration_no }}</span>
+              {% endif %}
+              {% if u.equipment.vendor %}<span style="color:#94a3b8;font-size:10px">({{ u.equipment.vendor.vendor_code }})</span>{% endif %}
+              {% if request.user.profile.role != 'viewer' %}
+              <form method="post" action="{% url 'ilm_remove_equipment' e.pk u.equipment.pk %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:10px;padding:0 2px" title="Remove">&#10005;</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endif %}{% endfor %}
+            {% if request.user.profile.role != 'viewer' %}
+            <button type="button" class="btn btn-outline-warning" style="font-size:10px;padding:1px 6px;margin-top:2px;border-radius:4px"
+                    onclick="openAddEq({{ e.pk }}, 'Crane', '{{ e.rig }}', '{{ e.date }}')">
+              &#43; Add Crane
+            </button>
+            {% endif %}
+            {% endwith %}
+          </td>
+
+          <td style="max-width:120px;color:#475569">{{ e.remarks|default:"—" }}</td>
+
+          {% if request.user.profile.role != 'viewer' %}
+          <td style="white-space:nowrap">
+            <a href="{% url 'ilm_edit' e.pk %}" class="btn btn-outline-primary btn-sm py-0">Edit</a>
+            {% if request.user.profile.role == 'admin' %}
+            <form method="post" action="{% url 'ilm_delete' e.pk %}" style="display:inline"
+                  onsubmit="return confirm('Delete ILM entry for {{ e.rig }} on {{ e.date }}?')">
+              {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ADD EQUIPMENT MODAL -->
+{% if request.user.profile.role != 'viewer' %}
+<div class="modal fade" id="addEqModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Link Equipment — <span id="eqEntryInfo"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="" id="addEqForm">
+        {% csrf_token %}
+        <input type="hidden" name="role" id="eqRole" value="Trailer">
+        <div class="modal-body">
+          <div class="mb-3 p-2" style="background:#eff6ff;border-radius:8px;font-size:13px;color:#1d4ed8">
+            <strong>Instructions:</strong> Select one or more equipment from the fleet list below.
+            Only equipment marked <em>Available</em> or <em>Deployed</em> is shown.
+            Use Ctrl+Click to select multiple.
+          </div>
+
+          <!-- Quick filter by type -->
+          <div class="d-flex gap-2 mb-3 flex-wrap">
+            <span style="font-size:12px;color:#64748b;align-self:center">Filter:</span>
+            {% for type in "Trailer,Crane,Forklift,Hydra,All"|split:"," %}
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0"
+                    onclick="filterEq('{{ type }}')">{{ type }}</button>
+            {% endfor %}
+          </div>
+
+          <select name="equipment_ids" id="eqSelect" multiple class="form-control"
+                  style="height:280px;font-size:13px">
+            {% for eq in fleet_equipment %}
+            <option value="{{ eq.pk }}"
+                    data-type="{{ eq.equipment_type }}"
+                    style="padding:6px 10px;border-bottom:1px solid #f1f5f9">
+              [{{ eq.equipment_type }}]  {{ eq.equipment_no }}
+              {% if eq.registration_no %} | Reg: {{ eq.registration_no }}{% endif %}
+              {% if eq.vendor %} | {{ eq.vendor.vendor_code }}{% endif %}
+              {% if eq.make_model %} | {{ eq.make_model }}{% endif %}
+              | {{ eq.status }}
+            </option>
+            {% empty %}
+            <option disabled>No fleet equipment found. Add equipment in Admin → Equipment first.</option>
+            {% endfor %}
+          </select>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px">
+            Hold <strong>Ctrl</strong> (Windows) or <strong>Cmd</strong> (Mac) to select multiple
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">&#10003; Link Selected Equipment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% block extra_js %}
+<script>
+function openAddEq(entryPk, role, rig, date) {
+  document.getElementById('eqRole').value    = role;
+  document.getElementById('eqEntryInfo').textContent = rig + ' / ' + date + ' (' + role + ')';
+  document.getElementById('addEqForm').action = '/ilm/' + entryPk + '/equipment/add/';
+  // Auto-filter by role type
+  filterEq(role);
+  new bootstrap.Modal(document.getElementById('addEqModal')).show();
+}
+
+function filterEq(type) {
+  const sel = document.getElementById('eqSelect');
+  if (!sel) return;
+  Array.from(sel.options).forEach(function(opt) {
+    if (type === 'All') {
+      opt.style.display = '';
+    } else {
+      opt.style.display = opt.dataset.type === type ? '' : 'none';
+    }
+  });
+  // Deselect hidden options
+  Array.from(sel.options).forEach(function(opt) {
+    if (opt.style.display === 'none') opt.selected = false;
+  });
+}
+</script>
+{% endblock %}
+{% endblock %}

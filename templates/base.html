@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page_title }} — KRISS DRILLING PVT. LTD.{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <button class="topbar-toggle" onclick="toggleSidebar()">&#9776;</button>
+  <span class="brand">KRISS DRILLING PVT. LTD.</span>
+  <div class="user-meta">
+    <span class="badge-role">{{ request.user.profile.role|default:"viewer" }}</span>
+    <span>{{ request.user.username }}</span>
+    <form method="post" action="{% url 'logout' %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn-logout">Logout</button>
+    </form>
+  </div>
+</div>
+
+<!-- SIDEBAR OVERLAY -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-section">Main</div>
+  <a href="{% url 'dashboard' %}"   class="{% if page_title == 'Dashboard' %}active{% endif %}">&#127381;&nbsp; Dashboard</a>
+  <a href="{% url 'add_entry' %}"   class="{% if page_title == 'Add Entry' %}active{% endif %}">&#10010;&nbsp; Add Entry</a>
+
+  <div class="sidebar-section">Reports</div>
+  <a href="{% url 'daily_report' %}"   class="{% if page_title == 'Daily Report' %}active{% endif %}">&#128197;&nbsp; Daily Report</a>
+  <a href="{% url 'weekly_report' %}"  class="{% if page_title == 'Weekly Report' %}active{% endif %}">&#128202;&nbsp; Weekly Report</a>
+  <a href="{% url 'monthly_report' %}" class="{% if page_title == 'Monthly Report' %}active{% endif %}">&#128200;&nbsp; Monthly Report</a>
+  <a href="{% url 'alerts' %}"         class="{% if page_title == 'Zero Rate Alerts' %}active{% endif %}">&#9888;&nbsp; Alerts</a>
+  <a href="{% url 'ilm_report' %}"     class="{% if page_title == 'ILM Report' %}active{% endif %}">&#128200;&nbsp; ILM Details</a>
+  <a href="{% url 'ilm_import' %}"     class="{% if page_title == 'Import ILM Excel' %}active{% endif %}">&#8679;&nbsp; Import ILM</a>
+
+  <div class="sidebar-section">HSD Diesel</div>
+  <a href="{% url 'hsd_dashboard' %}"  class="{% if page_title == 'HSD Dashboard' %}active{% endif %}">&#9968;&nbsp; HSD Overview</a>
+  <a href="{% url 'hsd_receipts' %}"   class="{% if page_title == 'HSD Receipts' %}active{% endif %}">&#9651;&nbsp; Receipts</a>
+  <a href="{% url 'hsd_add_receipt' %}" class="{% if page_title == 'Add HSD Receipt' %}active{% endif %}">&#10010;&nbsp; Add Receipt</a>
+  <a href="{% url 'hsd_issues' %}"     class="{% if page_title == 'HSD Issues' %}active{% endif %}">&#9661;&nbsp; Issues</a>
+  <a href="{% url 'hsd_add_issue' %}"  class="{% if page_title == 'Add HSD Issue' %}active{% endif %}">&#10010;&nbsp; Add Issue</a>
+  <a href="{% url 'hsd_stock' %}"      class="{% if page_title == 'HSD Daily Stock' %}active{% endif %}">&#128230;&nbsp; Stock</a>
+
+  {% if request.user.profile.role == 'admin' %}
+  <div class="sidebar-section">Admin</div>
+  <a href="{% url 'user_list' %}"      class="{% if page_title == 'User Management' %}active{% endif %}">&#128100;&nbsp; Users</a>
+  <a href="{% url 'rig_list' %}"       class="{% if page_title == 'Manage Rigs' %}active{% endif %}">&#128296;&nbsp; Manage Rigs</a>
+  <a href="{% url 'location_list' %}"  class="{% if page_title == 'Manage Locations' %}active{% endif %}">&#127759;&nbsp; Locations</a>
+  <a href="{% url 'equipment_list' %}" class="{% if page_title == 'Manage Equipment' %}active{% endif %}">&#128295;&nbsp; Equipment</a>
+  <a href="{% url 'vendor_list' %}"    class="{% if page_title == 'Manage Vendors' %}active{% endif %}">&#127970;&nbsp; Vendors</a>
+  {% endif %}
+
+  <div class="sidebar-section">Account</div>
+  <a href="{% url 'profile' %}"        class="{% if page_title == 'My Profile' %}active{% endif %}">&#128100;&nbsp; My Profile</a>
+  <a href="{% url 'export_excel' %}" onclick="this.closest('form') && this.closest('form').submit()">&#128202;&nbsp; Export Excel</a>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+  {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3" role="alert">
+      {{ message|safe }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endif %}
+
+  {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+document.querySelectorAll('.sidebar a').forEach(a => {
+  a.addEventListener('click', () => {
+    if (window.innerWidth <= 768) closeSidebar();
+  });
+});
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

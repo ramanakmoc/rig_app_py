@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#9661; Add HSD Issue</h3>
+  <a href="{% url 'hsd_issues' %}" class="btn btn-outline-secondary btn-sm">&#8592; Issues</a>
+</div>
+
+<div class="card-box" style="max-width:760px">
+  <div class="section-title">Diesel Issue / Consumption Details</div>
+  <form method="POST">
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-4 col-6">
+        <label class="form-label">Date <span class="text-danger">*</span></label>
+        <input type="date" name="date" class="form-control" value="{{ today }}" max="{{ today }}" required>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Issuing Rig/Location <span class="text-danger">*</span></label>
+        <select name="rig" class="form-select" required>
+          <option value="">— Select —</option>
+          {% for r in rigs %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Purpose <span class="text-danger">*</span></label>
+        <select name="purpose" class="form-select" id="purposeSelect" onchange="toggleEquipment()">
+          {% for code, label in purposes %}
+          <option value="{{ code }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Issued To <span class="text-danger">*</span></label>
+        <input type="text" name="issued_to" class="form-control" placeholder="Rig name, equipment no, vehicle no" required>
+      </div>
+      <div class="col-md-6" id="equipmentRow">
+        <label class="form-label">Link to Fleet Equipment (optional)</label>
+        <select name="equipment" class="form-select">
+          <option value="">— Select equipment —</option>
+          {% for eq in equipment %}
+          <option value="{{ eq.id }}">{{ eq.equipment_no }} — {{ eq.equipment_type }}
+            {% if eq.registration_no %}({{ eq.registration_no }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Link to fleet equipment for usage tracking</div>
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Quantity (Litres) <span class="text-danger">*</span></label>
+        <input type="number" step="0.01" name="quantity_ltrs" class="form-control" min="0.1" required placeholder="0.00">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Issued By</label>
+        <input type="text" name="issued_by" class="form-control" placeholder="Name">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Remarks</label>
+        <input type="text" name="remarks" class="form-control">
+      </div>
+    </div>
+    <div class="d-flex gap-2 mt-4">
+      <button type="submit" class="btn btn-danger px-4">&#10003; Save Issue</button>
+      <a href="{% url 'hsd_issues' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% block extra_js %}
+<script>
+function toggleEquipment() {
+  const purpose  = document.getElementById('purposeSelect').value;
+  const eqRow    = document.getElementById('equipmentRow');
+  const showEq   = ['Equipment','Vehicle','Generator'].includes(purpose);
+  eqRow.style.display = showEq ? '' : 'none';
+}
+toggleEquipment();
+</script>
+{% endblock %}
+{% endblock %}

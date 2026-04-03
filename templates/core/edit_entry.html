@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#9998; Edit Entry — {{ entry.rig }} / {{ entry.date }}</h3>
+  <a href="{% url 'daily_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; Report</a>
+</div>
+
+<div class="card-box" style="max-width:780px">
+  <div class="section-title">Update Hours</div>
+  <form method="POST">
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-4 col-6">
+        <label class="form-label">Date</label>
+        <input type="text" class="form-control" value="{{ entry.date }}" readonly style="background:#f8fafc">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Rig</label>
+        <input type="text" class="form-control" value="{{ entry.rig }}" readonly style="background:#f8fafc">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          {% for s in "Running,Standby,Breakdown"|split:"," %}
+          <option value="{{ s }}" {% if entry.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row g-3 mt-1">
+      <div class="col-md-4 col-6">
+        <label class="form-label">Operating Hours</label>
+        <input type="number" step="0.01" name="operating_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ entry.operating_hours }}" oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Standby Hours</label>
+        <input type="number" step="0.01" name="standby_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ entry.standby_hours }}" oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Breakdown Hours</label>
+        <input type="number" step="0.01" name="breakdown_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ entry.breakdown_hours }}" oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">ILM Hours</label>
+        <input type="number" step="0.01" name="ilm_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ entry.ilm_hours }}" oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Zero Rate Hours</label>
+        <input type="number" step="0.01" name="zero_rate_hours" class="form-control hrs-input"
+               min="0" max="24" value="{{ entry.zero_rate_hours }}" oninput="updateTotal()">
+      </div>
+      <div class="col-md-4 col-6">
+        <label class="form-label">Total Hours</label>
+        <div id="totalBox" class="form-control" style="background:#f8fafc;font-weight:700;color:#0b3d6d">0.00 / 24</div>
+      </div>
+    </div>
+    <div class="mt-2">
+      <div class="progress" style="height:10px">
+        <div id="opBar"  class="progress-bar bg-success" style="width:0%"></div>
+        <div id="sbBar"  class="progress-bar bg-warning" style="width:0%"></div>
+        <div id="bdBar"  class="progress-bar bg-danger"  style="width:0%"></div>
+        <div id="ilmBar" class="progress-bar bg-info"    style="width:0%"></div>
+        <div id="zrBar"  class="progress-bar"            style="width:0%;background:#8b5cf6"></div>
+      </div>
+    </div>
+    <div class="mt-3">
+      <label class="form-label">Reason / Remarks</label>
+      <textarea name="reason" class="form-control" rows="2">{{ entry.reason }}</textarea>
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-success px-4">&#10003; Update Entry</button>
+      <a href="{% url 'daily_report' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% block extra_js %}
+<script>
+function updateTotal() {
+  const names = ['operating_hours','standby_hours','breakdown_hours','ilm_hours','zero_rate_hours'];
+  const bars  = ['opBar','sbBar','bdBar','ilmBar','zrBar'];
+  let total = 0;
+  const vals = names.map(n => { const v = parseFloat(document.querySelector(`[name="${n}"]`).value)||0; total+=v; return v; });
+  const box = document.getElementById('totalBox');
+  box.textContent = total.toFixed(2)+' / 24';
+  box.style.color = total > 24 ? '#dc2626' : total === 24 ? '#16a34a' : '#0b3d6d';
+  bars.forEach((id,i) => document.getElementById(id).style.width=(vals[i]/24*100).toFixed(1)+'%');
+}
+updateTotal();
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128200; Monthly Report</h3>
+  <form method="post" action="{% url 'export_pdf_monthly' %}" style="display:inline">
+    {% csrf_token %}
+    <input type="hidden" name="rig"  value="{{ filters.rig }}">
+    <input type="hidden" name="from" value="{{ filters.from }}">
+    <input type="hidden" name="to"   value="{{ filters.to }}">
+    <button type="submit" class="btn btn-outline-danger btn-sm">&#8595; PDF</button>
+  </form>
+</div>
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6"><label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6"><label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'monthly_report' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+<div class="card-box">
+  <div class="section-title">Monthly Summary</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead><tr><th>Month</th><th>Rig</th><th>Op Hrs</th><th>SB Hrs</th><th>BD Hrs</th><th>ILM Hrs</th><th>Zero Rate</th><th>Entries</th></tr></thead>
+      <tbody>
+        {% for m in monthly %}
+        <tr>
+          <td><strong>{{ m.month|date:"M Y" }}</strong></td>
+          <td><strong>{{ m.rig }}</strong></td>
+          <td style="color:#1d4ed8;font-weight:600">{{ m.op_hrs|floatformat:1 }}</td>
+          <td>{{ m.sb_hrs|floatformat:1 }}</td>
+          <td style="color:{% if m.bd_hrs > 0 %}#dc2626{% else %}inherit{% endif %}">{{ m.bd_hrs|floatformat:1 }}</td>
+          <td>{{ m.ilm_hrs|floatformat:1 }}</td>
+          <td style="color:{% if m.zr_hrs > 0 %}#dc2626{% else %}inherit{% endif %}">{{ m.zr_hrs|floatformat:1 }}</td>
+          <td>{{ m.entries }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">No data found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
