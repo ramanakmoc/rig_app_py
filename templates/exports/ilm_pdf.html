@@ -3,40 +3,78 @@
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: A4 landscape; margin: 1.5cm; }
-  body { font-family: Arial, sans-serif; font-size: 8px; color: #1a202c; }
-  h1 { font-size: 15px; color: #0B3D6D; margin: 0 0 4px 0; }
-  .meta { font-size: 7px; color: #718096; margin-bottom: 8px; }
-  .stats { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-  .stat-box { background: #EBF4FF; border: 1px solid #BEE3F8; border-radius: 4px;
-              padding: 5px 10px; text-align: center; min-width: 80px; }
-  .stat-box .val { font-size: 13px; font-weight: bold; color: #0B3D6D; }
-  .stat-box .lbl { font-size: 7px; color: #4A5568; }
-  table { width: 100%; border-collapse: collapse; }
+  @page { size: A3 landscape; margin: 1.2cm; }
+  body { font-family: Arial, sans-serif; font-size: 8.5px; color: #1a202c; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border-bottom: 2px solid #0B3D6D; padding-bottom: 8px; }
+  .header h1 { font-size: 17px; color: #0B3D6D; margin: 0 0 3px 0; }
+  .header .meta { font-size: 7.5px; color: #718096; }
+  .header .logo-text { font-size: 10px; font-weight: bold; color: #0B3D6D; text-align: right; }
+
+  .stats { display: flex; gap: 8px; margin-bottom: 12px; }
+  .stat-box { background: linear-gradient(135deg, #EBF4FF, #DBEAFE); border: 1px solid #93C5FD; border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; }
+  .stat-box .val { font-size: 16px; font-weight: bold; color: #0B3D6D; line-height: 1.2; }
+  .stat-box .val.red { color: #dc2626; }
+  .stat-box .lbl { font-size: 6.5px; color: #4A5568; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   thead tr { background-color: #0B3D6D; color: #ffffff; }
-  thead th { padding: 5px 4px; text-align: center; font-size: 7px; }
-  tbody tr:nth-child(even) { background-color: #f8fafc; }
-  tbody tr:nth-child(odd)  { background-color: #ffffff; }
-  tbody td { padding: 4px; border: 1px solid #e2e8f0; text-align: center; font-size: 7.5px; }
+  thead th { padding: 6px 4px; text-align: center; font-size: 7.5px; font-weight: bold; border: 1px solid #1e56a0; }
+  tbody tr.main-row:nth-child(4n+1),
+  tbody tr.main-row:nth-child(4n+2) { background-color: #F0F7FF; }
+  tbody tr.main-row:nth-child(4n+3),
+  tbody tr.main-row:nth-child(4n+4) { background-color: #ffffff; }
+  tbody tr.reg-row { background-color: #fafafa; }
+  tbody td { padding: 5px 4px; border-left: 1px solid #CBD5E0; border-right: 1px solid #CBD5E0; font-size: 7.5px; text-align: center; word-wrap: break-word; }
+  tbody tr.main-row td { border-top: 1px solid #CBD5E0; }
+  tbody tr.reg-row td { border-bottom: 1px solid #CBD5E0; font-size: 7px; color: #4A5568; padding: 2px 4px; }
   td.left { text-align: left; }
-  .status-active   { color: #276749; font-weight: bold; }
-  .status-standby  { color: #B7791F; font-weight: bold; }
-  .status-internal { color: #2B6CB0; font-weight: bold; }
-  .status-idle     { color: #C53030; font-weight: bold; }
-  .footer { margin-top: 10px; font-size: 7px; color: #a0aec0; text-align: right; }
-  .no-data { text-align: center; padding: 20px; color: #718096; }
+
+  .col-date    { width: 7%; }
+  .col-rig     { width: 5%; }
+  .col-status  { width: 6%; }
+  .col-from    { width: 7%; }
+  .col-to      { width: 7%; }
+  .col-dist    { width: 4%; }
+  .col-exp     { width: 5%; }
+  .col-actual  { width: 5%; }
+  .col-extra   { width: 5%; }
+  .col-saving  { width: 5%; }
+  .col-trailers{ width: 4%; }
+  .col-tloss   { width: 4%; }
+  .col-tvend   { width: 8%; }
+  .col-crane   { width: 4%; }
+  .col-cvend   { width: 8%; }
+  .col-remarks { width: 10%; }
+
+  .badge { padding: 2px 6px; border-radius: 10px; font-size: 7px; font-weight: bold; }
+  .badge-active   { background:#DCFCE7; color:#166534; }
+  .badge-standby  { background:#FEF9C3; color:#854D0E; }
+  .badge-internal { background:#DBEAFE; color:#1E40AF; }
+  .badge-idle     { background:#FEE2E2; color:#991B1B; }
+
+  .reg-label { font-weight: bold; color: #0B3D6D; }
+  .reg-list  { color: #374151; }
+
+  .footer { margin-top: 10px; font-size: 7px; color: #94a3b8; display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; padding-top: 5px; }
+  .no-data { text-align: center; padding: 30px; color: #718096; font-size: 11px; }
 </style>
 </head>
 <body>
 
-<h1>KRISS Drilling — ILM Report</h1>
-<div class="meta">
-  Generated: {{ generated|date:"d M Y, H:i" }}
-  {% if filters.rig %}    &nbsp;|&nbsp; Rig: {{ filters.rig }}{% endif %}
-  {% if filters.month %}  &nbsp;|&nbsp; Month: {{ filters.month }}{% endif %}
-  {% if filters.from %}   &nbsp;|&nbsp; From: {{ filters.from }}{% endif %}
-  {% if filters.to %}     &nbsp;|&nbsp; To: {{ filters.to }}{% endif %}
-  {% if filters.status %} &nbsp;|&nbsp; Status: {{ filters.status }}{% endif %}
+<div class="header">
+  <div>
+    <h1>&#9968; ILM Movement Report</h1>
+    <div class="meta">
+      Generated: {{ generated|date:"d M Y, H:i" }}
+      {% if filters.rig %}    &nbsp;&#9656;&nbsp; Rig: <strong>{{ filters.rig }}</strong>{% endif %}
+      {% if filters.month %}  &nbsp;&#9656;&nbsp; Month: <strong>{{ filters.month }}</strong>{% endif %}
+      {% if filters.from %}   &nbsp;&#9656;&nbsp; From: <strong>{{ filters.from }}</strong>{% endif %}
+      {% if filters.to %}     &nbsp;&#9656;&nbsp; To: <strong>{{ filters.to }}</strong>{% endif %}
+      {% if filters.status %} &nbsp;&#9656;&nbsp; Status: <strong>{{ filters.status }}</strong>{% endif %}
+    </div>
+  </div>
+  <div class="logo-text">KRISS DRILLING PVT. LTD.<br><span style="font-size:8px;font-weight:normal;color:#64748b">Confidential — Internal Use Only</span></div>
 </div>
 
 <div class="stats">
@@ -46,58 +84,80 @@
   <div class="stat-box"><div class="val">{{ stats.extra|default:"0"|floatformat:1 }}</div><div class="lbl">Extra Hrs</div></div>
   <div class="stat-box"><div class="val">{{ stats.saving|default:"0"|floatformat:1 }}</div><div class="lbl">Saving Hrs</div></div>
   <div class="stat-box"><div class="val">{{ stats.trailers|default:"0" }}</div><div class="lbl">Trailers</div></div>
-  <div class="stat-box"><div class="val">{{ stats.t_loss|default:"0" }}</div><div class="lbl">Trailer Loss</div></div>
+  <div class="stat-box"><div class="val red">{{ stats.t_loss|default:"0" }}</div><div class="lbl">Trailer Loss</div></div>
 </div>
 
 <table>
+  <colgroup>
+    <col class="col-date"><col class="col-rig"><col class="col-status">
+    <col class="col-from"><col class="col-to"><col class="col-dist">
+    <col class="col-exp"><col class="col-actual"><col class="col-extra">
+    <col class="col-saving"><col class="col-trailers"><col class="col-tloss">
+    <col class="col-tvend"><col class="col-crane"><col class="col-cvend">
+    <col class="col-remarks">
+  </colgroup>
   <thead>
     <tr>
-      <th>Date</th>
-      <th>Rig</th>
-      <th>Status</th>
-      <th>From</th>
-      <th>To</th>
-      <th>Dist KM</th>
-      <th>Exp Hrs</th>
-      <th>Actual Hrs</th>
-      <th>Extra Hrs</th>
-      <th>Saving Hrs</th>
-      <th>Trailers</th>
-      <th>T.Loss</th>
-      <th>T.Vendor</th>
-      <th>Crane</th>
-      <th>C.Vendor</th>
+      <th>Date</th><th>Rig</th><th>Status</th>
+      <th>From</th><th>To</th><th>Dist KM</th>
+      <th>Exp Hrs</th><th>Actual Hrs</th><th>Extra Hrs</th>
+      <th>Saving Hrs</th><th>Trailers</th><th>T.Loss</th>
+      <th>Trailer Vendor</th><th>Crane</th><th>Crane Vendor</th>
       <th>Remarks</th>
     </tr>
   </thead>
   <tbody>
     {% for e in entries %}
-    <tr>
+
+    {# Collect trailer and crane registrations #}
+    {% with trailers=e.equipment_usage.all cranes=e.equipment_usage.all %}
+    <tr class="main-row">
       <td>{{ e.date|date:"d-M-Y" }}</td>
-      <td>{{ e.rig }}</td>
-      <td>
-        <span class="status-{{ e.move_status|lower }}">{{ e.move_status }}</span>
-      </td>
+      <td><strong>{{ e.rig }}</strong></td>
+      <td><span class="badge badge-{{ e.move_status|lower }}">{{ e.move_status }}</span></td>
       <td class="left">{{ e.ilm_from_location|default:"—" }}</td>
       <td class="left">{{ e.ilm_to_location|default:"—" }}</td>
       <td>{{ e.distance_kms|default:"—" }}</td>
       <td>{{ e.expected_ilm_hrs|default:"—" }}</td>
-      <td>{{ e.during_ilm_hrs|default:"—" }}</td>
-      <td>{{ e.rig_move_extra_hrs|default:"0" }}</td>
-      <td>{{ e.rig_move_saving_hrs|default:"0" }}</td>
+      <td><strong>{{ e.during_ilm_hrs|default:"—" }}</strong></td>
+      <td style="color:#b45309">{{ e.rig_move_extra_hrs|default:"0" }}</td>
+      <td style="color:#15803d">{{ e.rig_move_saving_hrs|default:"0" }}</td>
       <td>{{ e.trailer_reported|default:"0" }}</td>
-      <td>{{ e.trailer_loss|default:"0" }}</td>
+      <td style="color:{% if e.trailer_loss > 0 %}#dc2626{% else %}#374151{% endif %}">{{ e.trailer_loss|default:"0" }}</td>
       <td class="left">{{ e.trailer_vendor|default:"—" }}</td>
       <td>{{ e.crane_reported|default:"—" }}</td>
       <td class="left">{{ e.crane_vendor|default:"—" }}</td>
       <td class="left">{{ e.remarks|default:"—" }}</td>
     </tr>
+
+    {# Registration numbers row #}
+    <tr class="reg-row">
+      <td colspan="3"></td>
+      <td colspan="9" class="left">
+        <span class="reg-label">Trailers:</span>
+        <span class="reg-list">
+          {% for u in e.equipment_usage.all %}{% if u.role == 'Trailer' %}{{ u.equipment.registration_no }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}
+          {% with has_t=False %}{% for u in e.equipment_usage.all %}{% if u.role == 'Trailer' %}{% endif %}{% endfor %}{% endwith %}
+        </span>
+        &nbsp;&nbsp;
+        <span class="reg-label">Cranes:</span>
+        <span class="reg-list">
+          {% for u in e.equipment_usage.all %}{% if u.role == 'Crane' %}{{ u.equipment.registration_no }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}
+        </span>
+      </td>
+      <td colspan="4"></td>
+    </tr>
+    {% endwith %}
+
     {% empty %}
     <tr><td colspan="16" class="no-data">No ILM records found for the selected filters.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 
-<div class="footer">KRISS Drilling Rig App &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; ILM Report</div>
+<div class="footer">
+  <span>KRISS Drilling Rig App &nbsp;|&nbsp; ILM Movement Report</span>
+  <span>Total Records: {{ entries|length }}</span>
+</div>
 </body>
 </html>

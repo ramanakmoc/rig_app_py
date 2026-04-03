@@ -19,11 +19,12 @@ def _get_rigs():
 
 
 def _build_filter(request):
-    rig_f    = request.GET.get('rig', '').strip()
-    from_f   = request.GET.get('from', '').strip()
-    to_f     = request.GET.get('to', datetime.date.today().isoformat()).strip()
-    month_f  = request.GET.get('month', '').strip()
-    status_f = request.GET.get('status', '').strip()
+    p = request.POST if request.method == 'POST' else request.GET
+    rig_f    = p.get('rig', '').strip()
+    from_f   = p.get('from', '').strip()
+    to_f     = p.get('to', datetime.date.today().isoformat()).strip()
+    month_f  = p.get('month', '').strip()
+    status_f = p.get('status', '').strip()
 
     qs = ILMLog.objects.all()
     if month_f and len(month_f) == 7:
@@ -466,18 +467,45 @@ def ilm_export_excel(request):
 def ilm_export_pdf(request):
     if request.method != 'POST':
         return redirect('ilm_report')
-    qs, filters = _build_filter(request)
+
+    # Read filters from POST (not GET)
+    rig_f    = request.POST.get('rig', '').strip()
+    from_f   = request.POST.get('from', '').strip()
+    to_f     = request.POST.get('to', datetime.date.today().isoformat()).strip()
+    month_f  = request.POST.get('month', '').strip()
+    status_f = request.POST.get('status', '').strip()
+
+    qs = ILMLog.objects.all()
+    if month_f and len(month_f) == 7:
+        import calendar
+        year, mon = month_f.split('-')
+        last_day = calendar.monthrange(int(year), int(mon))[1]
+        qs = qs.filter(date__gte=f'{month_f}-01', date__lte=f'{month_f}-{last_day:02d}')
+    else:
+        if from_f: qs = qs.filter(date__gte=from_f)
+        if to_f:   qs = qs.filter(date__lte=to_f)
+    if rig_f:    qs = qs.filter(rig=rig_f)
+    if status_f: qs = qs.filter(move_status=status_f)
+
+    qs = qs.prefetch_related('equipment_usage__equipment').order_by('rig', 'date')
+
+    filters = {'rig': rig_f, 'from': from_f, 'to': to_f,
+               'month': month_f, 'status': status_f}
+
     stats = qs.aggregate(
-        total=Count('id'), moves=Count('id', filter=Q(during_ilm_hrs__gt=0)),
+        total=Count('id'), moves=Count('id', filter=models.Q(during_ilm_hrs__gt=0)),
         hrs=Sum('during_ilm_hrs'), extra=Sum('rig_move_extra_hrs'),
         saving=Sum('rig_move_saving_hrs'), trailers=Sum('trailer_reported'),
         t_loss=Sum('trailer_loss'),
     )
+
     html = render_to_string('exports/ilm_pdf.html', {
-        'entries': qs.prefetch_related('equipment_usage__equipment').order_by('rig', 'date'),
-        'stats':   stats, 'filters': filters,
+        'entries':   qs,
+        'stats':     stats,
+        'filters':   filters,
         'generated': datetime.datetime.now(),
     }, request=request)
+
     import weasyprint
     pdf = weasyprint.HTML(string=html).write_pdf()
     response = HttpResponse(pdf, content_type='application/pdf')

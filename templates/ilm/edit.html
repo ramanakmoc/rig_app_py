@@ -1,67 +1,77 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-header">
-  <h3>&#43; Add ILM Entry</h3>
+  <h3>&#9998; Edit ILM Entry</h3>
   <a href="{% url 'ilm_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; ILM Report</a>
 </div>
-<form action="{% url 'ilm_add' %}" method="POST" class="card-box" style="max-width:900px">
+<form action="{% url 'ilm_edit' entry.pk %}" method="POST" class="card-box" style="max-width:900px">
   {% csrf_token %}
   <div class="section-title">Entry Details</div>
   <div class="row g-3">
     <div class="col-md-3 col-6"><label class="form-label">Date <span class="text-danger">*</span></label>
-      <input type="date" name="date" class="form-control" value="{{ today }}" max="{{ today }}" required></div>
+      <input type="date" name="date" class="form-control" value="{{ entry.date|date:'Y-m-d' }}" required></div>
     <div class="col-md-3 col-6"><label class="form-label">Rig <span class="text-danger">*</span></label>
       <select name="rig" class="form-select" required><option value="">— Select —</option>
-        {% for r in rigs %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        {% for r in rigs %}<option value="{{ r }}" {% if entry.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
       </select></div>
     <div class="col-md-3 col-6"><label class="form-label">Move Status</label>
       <select name="move_status" class="form-select">
-        {% for s in statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        {% for s in statuses %}<option value="{{ s }}" {% if entry.move_status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
       </select></div>
     <div class="col-md-3 col-6"><label class="form-label">During ILM Hrs (actual)</label>
-      <input type="number" step="0.01" name="during_ilm_hrs" class="form-control" min="0" max="72" oninput="calcHours()"></div>
+      <input type="number" step="0.01" name="during_ilm_hrs" class="form-control" min="0" max="72"
+             value="{{ entry.during_ilm_hrs|default:'' }}" oninput="calcHours()"></div>
   </div>
   <div class="section-title mt-4">Move Details</div>
   <div class="row g-3">
     <div class="col-md-3 col-6"><label class="form-label">From Location</label>
-      <input type="text" name="ilm_from_location" class="form-control" list="locList"></div>
+      <input type="text" name="ilm_from_location" class="form-control" list="locList"
+             autocomplete="off" value="{{ entry.ilm_from_location }}"></div>
     <div class="col-md-3 col-6"><label class="form-label">To Location</label>
-      <input type="text" name="ilm_to_location" class="form-control" list="locList"></div>
+      <input type="text" name="ilm_to_location" class="form-control" list="locList"
+             autocomplete="off" value="{{ entry.ilm_to_location }}"></div>
     <div class="col-md-3 col-6"><label class="form-label">Distance (KMS)</label>
-      <input type="text" name="distance_kms" class="form-control" placeholder="e.g. 3.8"></div>
+      <input type="text" name="distance_kms" class="form-control" value="{{ entry.distance_kms }}"></div>
     <div class="col-md-3 col-6"><label class="form-label">Expected ILM Hrs</label>
-      <input type="text" name="expected_ilm_hrs" class="form-control" id="expHrs" placeholder="e.g. 30" oninput="calcHours()"></div>
+      <input type="text" name="expected_ilm_hrs" class="form-control" id="expHrs"
+             value="{{ entry.expected_ilm_hrs }}" oninput="calcHours()"></div>
     <div class="col-md-3 col-6"><label class="form-label">Extra Hrs</label>
-      <input type="number" step="0.01" name="rig_move_extra_hrs" id="extraHrs" class="form-control" readonly style="background:#fff8e1"></div>
+      <input type="number" step="0.01" name="rig_move_extra_hrs" id="extraHrs" class="form-control"
+             value="{{ entry.rig_move_extra_hrs }}" readonly style="background:#fff8e1"></div>
     <div class="col-md-3 col-6"><label class="form-label">Saving Hrs</label>
-      <input type="number" step="0.01" name="rig_move_saving_hrs" id="savingHrs" class="form-control" readonly style="background:#f0fdf4"></div>
+      <input type="number" step="0.01" name="rig_move_saving_hrs" id="savingHrs" class="form-control"
+             value="{{ entry.rig_move_saving_hrs }}" readonly style="background:#f0fdf4"></div>
   </div>
-  <div class="section-title mt-4">Trailer & Crane</div>
+  <div class="section-title mt-4">Trailer &amp; Crane</div>
   <div class="row g-3">
     <div class="col-md-2 col-6"><label class="form-label">Trailers</label>
-      <input type="number" name="trailer_reported" class="form-control" min="0" value="0"></div>
+      <input type="number" name="trailer_reported" class="form-control" min="0" value="{{ entry.trailer_reported }}"></div>
     <div class="col-md-2 col-6"><label class="form-label">T.Loss</label>
-      <input type="number" name="trailer_loss" class="form-control" min="0" value="0"></div>
+      <input type="number" name="trailer_loss" class="form-control" min="0" value="{{ entry.trailer_loss }}"></div>
     <div class="col-md-4"><label class="form-label">Trailer Vendor</label>
-      <input type="text" name="trailer_vendor" class="form-control" list="vendorList" autocomplete="off"></div>
+      <input type="text" name="trailer_vendor" class="form-control" list="vendorList"
+             autocomplete="off" value="{{ entry.trailer_vendor }}"></div>
     <div class="col-md-2 col-6"><label class="form-label">Cranes</label>
-      <input type="text" name="crane_reported" class="form-control" placeholder="e.g. 2"></div>
+      <input type="text" name="crane_reported" class="form-control" value="{{ entry.crane_reported }}"></div>
     <div class="col-md-2 col-6"><label class="form-label">Crane Vendor</label>
-      <input type="text" name="crane_vendor" class="form-control" list="vendorList" autocomplete="off"></div>
+      <input type="text" name="crane_vendor" class="form-control" list="vendorList"
+             autocomplete="off" value="{{ entry.crane_vendor }}"></div>
     <div class="col-12"><label class="form-label">Remarks</label>
-      <input type="text" name="remarks" class="form-control"></div>
+      <input type="text" name="remarks" class="form-control" value="{{ entry.remarks }}"></div>
   </div>
   <datalist id="locList">{% for l in locations %}<option value="{{ l.location }}">{{ l.location }} ({{ l.category }})</option>{% endfor %}</datalist>
   <datalist id="vendorList">{% for v in vendors %}<option value="{{ v.vendor_code }}">{{ v.vendor_code }} — {{ v.vendor_name }}</option>{% endfor %}</datalist>
   <div class="d-flex gap-2 mt-4">
-    <button type="submit" class="btn btn-success px-4">&#10003; Save Entry</button>
+    <button type="submit" class="btn btn-success px-4">&#10003; Update Entry</button>
     <a href="{% url 'ilm_report' %}" class="btn btn-outline-secondary px-4">Cancel</a>
   </div>
 </form>
+{% endblock %}
+
 {% block extra_js %}
 <script>
 function calcHours() {
-  const exp = parseFloat(document.getElementById('expHrs').value);
+  const exp    = parseFloat(document.getElementById('expHrs').value);
   const actual = parseFloat(document.querySelector('[name=during_ilm_hrs]').value);
   if (!isNaN(exp) && !isNaN(actual) && exp > 0 && actual > 0) {
     const diff = actual - exp;
@@ -70,5 +80,4 @@ function calcHours() {
   }
 }
 </script>
-{% endblock %}
 {% endblock %}
