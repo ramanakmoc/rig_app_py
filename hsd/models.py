@@ -64,6 +64,12 @@ class HSDIssue(models.Model):
     date          = models.DateField(db_index=True)
     rig           = models.CharField(max_length=30, db_index=True,
                                       help_text='Rig or location issuing from')
+    meter_start   = models.DecimalField(max_digits=10, decimal_places=1, null=True, blank=True,
+                                         help_text='Starting meter/hour reading')
+    meter_end     = models.DecimalField(max_digits=10, decimal_places=1, null=True, blank=True,
+                                         help_text='Ending meter/hour reading')
+    meter_hours   = models.DecimalField(max_digits=8, decimal_places=1, null=True, blank=True,
+                                         help_text='Hours run (auto = end - start)')
     purpose       = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='Drilling')
     issued_to     = models.CharField(max_length=100,
                                       help_text='Rig name, equipment no, or description')

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128101; POB Report</h3>
+  <div class="d-flex gap-2">
+    <a href="{% url 'pob_add' %}" class="btn btn-primary btn-sm">&#10010; Add POB Entry</a>
+    <a href="{% url 'pob_masters' %}" class="btn btn-outline-secondary btn-sm">&#9881; Masters</a>
+    <a href="{% url 'pob_employees' %}" class="btn btn-outline-secondary btn-sm">&#128100; Employees</a>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6">
+      <label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">Month</label>
+      <input type="month" name="month" class="form-control form-control-sm" value="{{ filters.month }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">Apply</button></div>
+    <div class="col-md-2"><a href="{% url 'pob_report' %}" class="btn btn-outline-secondary btn-sm w-100">Reset</a></div>
+  </form>
+</div>
+
+<!-- STAT CARDS -->
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="stat-card blue"><h6>Latest POB Count</h6><h2>{{ latest_pob }}</h2>
+      <small>{% if latest_log %}{{ latest_log.rig }} — {{ latest_log.date }}{% endif %}</small>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card green"><h6>Average POB</h6><h2>{{ avg_pob }}</h2><small>Across all logs</small></div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card amber"><h6>Peak POB</h6><h2>{{ max_pob }}</h2><small>Maximum recorded</small></div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card red"><h6>LTI Free Days</h6><h2>{{ latest_lti }}</h2>
+      <small>{% if latest_log %}{{ latest_log.rig }}{% endif %}</small>
+    </div>
+  </div>
+</div>
+
+{% if logs %}
+<!-- CHARTS ROW 1 -->
+<div class="row g-4 mb-4">
+  <!-- POB Trend Line Chart -->
+  <div class="col-md-8">
+    <div class="card-box">
+      <div class="section-title">POB Trend Over Time</div>
+      <div style="position:relative;height:260px">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rig-wise Avg POB Donut -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Avg POB by Rig</div>
+      <div style="position:relative;height:220px">
+        <canvas id="rigPieChart"></canvas>
+      </div>
+      {% if rig_summary %}
+      <div style="margin-top:8px">
+        {% for r in rig_summary %}
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid #f1f5f9">
+          <span style="font-weight:600">{{ r.rig }}</span>
+          <span>Avg: <strong style="color:#1d4ed8">{{ r.avg_pob }}</strong> | Max: <strong>{{ r.max_pob }}</strong></span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS ROW 2 -->
+<div class="row g-4 mb-4">
+  <!-- Company-wise POB Pie (latest day) -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Company-wise POB
+        {% if latest_log %}<span style="font-size:10px;font-weight:400;color:#64748b"> ({{ latest_log.date }})</span>{% endif %}
+      </div>
+      <div style="position:relative;height:220px">
+        <canvas id="companyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shift Distribution -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Shift Distribution
+        {% if latest_log %}<span style="font-size:10px;font-weight:400;color:#64748b"> ({{ latest_log.date }})</span>{% endif %}
+      </div>
+      <div style="position:relative;height:220px">
+        <canvas id="shiftChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meal Count Bar -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Meal Count
+        {% if latest_log %}<span style="font-size:10px;font-weight:400;color:#64748b"> ({{ latest_log.date }})</span>{% endif %}
+      </div>
+      <div style="position:relative;height:220px">
+        <canvas id="mealChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- POB LOG TABLE -->
+<div class="card-box">
+  <div class="section-title">Daily POB Log ({{ logs|length }} entries)</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead>
+        <tr><th>Date</th><th>Rig</th><th>Location</th><th>Total POB</th><th>Live on Site</th><th>Meals B/L/D</th><th>LTI Days</th><th>Remarks</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>{{ log.date }}</td>
+          <td><strong>{{ log.rig }}</strong></td>
+          <td style="font-size:11px;color:#475569">{{ log.location|default:"—" }}</td>
+          <td style="font-weight:800;font-size:18px;color:#1d4ed8">{{ log.total_pob }}</td>
+          <td style="color:#16a34a;font-weight:600">{{ log.day_pob_live }}</td>
+          <td style="font-size:11px">
+            <span style="color:#1d4ed8">B:{{ log.meal_breakfast }}</span> /
+            <span style="color:#16a34a">L:{{ log.meal_lunch }}</span> /
+            <span style="color:#dc2626">D:{{ log.meal_dinner }}</span>
+          </td>
+          <td style="font-weight:700;color:#f59e0b">{{ log.lti_free_days }}</td>
+          <td style="font-size:11px;color:#64748b">{{ log.remarks|default:"—" }}</td>
+          <td style="white-space:nowrap">
+            <a href="{% url 'pob_day_detail' log.pk %}" class="btn btn-outline-primary btn-sm py-0">View</a>
+            {% if request.user.profile.role == 'admin' %}
+            <form method="POST" action="{% url 'pob_delete_log' log.pk %}" style="display:inline"
+                  onsubmit="return confirm('Delete POB for {{ log.rig }} on {{ log.date }}?')">
+              {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-4">No POB entries found. <a href="{% url 'pob_add' %}">Add first entry</a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const dateLabels    = {{ date_labels|safe }};
+const trendDatasets = {{ trend_datasets|safe }};
+const chartColors   = {{ chart_colors|safe }};
+const catLabels     = {{ cat_labels|safe }};
+const catValues     = {{ cat_values|safe }};
+const mealData      = {{ meal_data|safe }};
+const shiftData     = {{ shift_data|safe }};
+
+// 1. POB Trend Line Chart
+if (dateLabels.length > 0 && document.getElementById('trendChart')) {
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: dateLabels,
+      datasets: trendDatasets.map(d => ({
+        label: d.label,
+        data: d.data,
+        borderColor: d.color,
+        backgroundColor: d.color + '20',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 4,
+        borderWidth: 2,
+        spanGaps: true,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxTicksLimit: 14, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,0.04)' } },
+        y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.04)' },
+             title: { display: true, text: 'Persons on Board' } }
+      }
+    }
+  });
+}
+
+// 2. Rig-wise Avg POB Donut
+const rigLabels = {{ rig_summary|length }} > 0 ? [{% for r in rig_summary %}'{{ r.rig }}',{% endfor %}] : [];
+const rigAvgs   = [{% for r in rig_summary %}{{ r.avg_pob }},{% endfor %}];
+if (rigLabels.length > 0 && document.getElementById('rigPieChart')) {
+  new Chart(document.getElementById('rigPieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: rigLabels,
+      datasets: [{ data: rigAvgs, backgroundColor: chartColors, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: Avg ${ctx.parsed.toFixed(1)} persons` } }
+      }
+    }
+  });
+}
+
+// 3. Company-wise Pie
+if (catLabels.length > 0 && document.getElementById('companyChart')) {
+  new Chart(document.getElementById('companyChart'), {
+    type: 'doughnut',
+    data: {
+      labels: catLabels,
+      datasets: [{ data: catValues, backgroundColor: chartColors, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '50%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+        tooltip: { callbacks: { label: ctx => {
+          const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+          return ` ${ctx.label}: ${ctx.parsed} (${(ctx.parsed/total*100).toFixed(1)}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+// 4. Shift Bar Chart
+if (document.getElementById('shiftChart')) {
+  new Chart(document.getElementById('shiftChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(shiftData),
+      datasets: [{
+        label: 'Persons',
+        data: Object.values(shiftData),
+        backgroundColor: ['#3b82f6','#8b5cf6','#22c55e'],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+        x: { ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// 5. Meal Bar Chart
+if (document.getElementById('mealChart')) {
+  new Chart(document.getElementById('mealChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(mealData),
+      datasets: [{
+        label: 'Count',
+        data: Object.values(mealData),
+        backgroundColor: ['#3b82f6','#16a34a','#dc2626'],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+        x: { ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}
+{% endblock %}

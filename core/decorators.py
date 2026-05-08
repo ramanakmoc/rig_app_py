@@ -32,3 +32,19 @@ def admin_required(view_func):
 
 def supervisor_required(view_func):
     return role_required('admin', 'supervisor')(view_func)
+
+
+def get_user_rigs(request, all_rigs):
+    """Return rigs the current user can access."""
+    try:
+        return request.user.profile.filter_rigs(all_rigs)
+    except Exception:
+        return all_rigs
+
+
+def get_user_rigs(request, all_rigs):
+    """Return rigs the current user can access."""
+    try:
+        return request.user.profile.filter_rigs(all_rigs)
+    except Exception:
+        return all_rigs

@@ -11,6 +11,10 @@ class ILMLog(models.Model):
     ]
 
     date                = models.DateField(db_index=True)
+    start_date          = models.DateField(null=True, blank=True, help_text='ILM start date')
+    start_time          = models.TimeField(null=True, blank=True, help_text='ILM start time')
+    end_date            = models.DateField(null=True, blank=True, help_text='ILM end date')
+    end_time            = models.TimeField(null=True, blank=True, help_text='ILM end time')
     rig                 = models.CharField(max_length=30, db_index=True)
     move_status         = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     ilm_from_location   = models.CharField(max_length=150, blank=True)
@@ -34,6 +38,8 @@ class ILMLog(models.Model):
                                        help_text='Count or description e.g. 2, 1 ARC & 1 ACC')
     crane_vendor   = models.CharField(max_length=150, blank=True)
 
+    move_group = models.CharField(max_length=50, blank=True, default='',
+                               help_text='Group ID linking multi-day entries of same ILM move')
     remarks    = models.TextField(blank=True)
     created_by = models.ForeignKey(User, null=True, blank=True,
                                     on_delete=models.SET_NULL, related_name='ilm_entries')

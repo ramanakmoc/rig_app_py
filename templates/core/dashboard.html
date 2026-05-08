@@ -118,9 +118,12 @@ window.addEventListener('load', function() {
         {% endfor %}
       </select>
       <select name="period" class="form-select form-select-sm" style="width:140px" onchange="document.getElementById('filterForm').submit()">
+        <option value="yesterday" {% if time_filter == 'yesterday' %}selected{% endif %}>Yesterday</option>
         <option value="week"   {% if time_filter == 'week'   %}selected{% endif %}>Last 7 Days</option>
         <option value="month"  {% if time_filter == 'month'  %}selected{% endif %}>This Month</option>
         <option value="3month" {% if time_filter == '3month' %}selected{% endif %}>Last 3 Months</option>
+        <option value="6month" {% if time_filter == '6month' %}selected{% endif %}>Last 6 Months</option>
+        <option value="9month" {% if time_filter == '9month' %}selected{% endif %}>Last 9 Months</option>
         <option value="year"   {% if time_filter == 'year'   %}selected{% endif %}>This Year</option>
         <option value="all"    {% if time_filter == 'all'    %}selected{% endif %}>All Time</option>
       </select>
@@ -164,7 +167,7 @@ window.addEventListener('load', function() {
   <div class="col-md-2 col-6">
     <div class="stat-card {% if fleet_efficiency >= 70 %}green{% elif fleet_efficiency >= 50 %}amber{% else %}red{% endif %}">
       <h6>Fleet Efficiency</h6><h2>{{ fleet_efficiency }}%</h2>
-      <small>{{ days_count }} day(s) × {{ rigs_count }} rig(s)</small>
+      <small>{{ days_count }} day(s) �- {{ rigs_count }} rig(s)</small>
     </div>
   </div>
 </div>

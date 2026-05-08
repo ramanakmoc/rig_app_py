@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#9881; POB Masters</h3>
+  <a href="{% url 'pob_employees' %}" class="btn btn-outline-primary btn-sm">&#128100; Employees</a>
+  <a href="{% url 'pob_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; POB Report</a>
+</div>
+
+<div class="row g-4">
+
+  <!-- DESIGNATIONS -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="section-title" style="margin:0">Designations ({{ desigs|length }})</div>
+        <button class="btn btn-outline-primary btn-sm" onclick="showAddForm('desig')">+ Add</button>
+      </div>
+
+      <!-- Add/Edit Form -->
+      <div id="desigForm" style="display:none;background:#f8fafc;border-radius:6px;padding:10px;margin-bottom:10px">
+        <form method="POST" action="{% url 'pob_master_save' 'designation' %}">
+          {% csrf_token %}
+          <input type="hidden" name="pk" id="desigPk">
+          <div class="mb-2"><input type="text" name="name" id="desigName" class="form-control form-control-sm" placeholder="Designation name" required></div>
+          <div class="mb-2">
+            <select name="category" id="desigCat" class="form-select form-select-sm">
+              <option value="">-- Category --</option>
+              <option value="Management">Management</option>
+              <option value="Drilling">Drilling</option>
+              <option value="Technical">Technical</option>
+              <option value="Support">Support</option>
+              <option value="Safety">Safety</option>
+              <option value="Medical">Medical</option>
+              <option value="Equipment">Equipment</option>
+              <option value="Security">Security</option>
+            </select>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success btn-sm">Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="hideForm('desig')">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <div style="max-height:350px;overflow-y:auto">
+        <table class="table-clean" style="font-size:12px">
+          <thead><tr><th>Designation</th><th>Category</th><th style="width:70px">Actions</th></tr></thead>
+          <tbody>
+            {% for d in desigs %}
+            <tr>
+              <td style="font-weight:600">{{ d.name }}</td>
+              <td><span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px;font-size:10px">{{ d.category|default:"—" }}</span></td>
+              <td style="white-space:nowrap">
+                <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                        onclick="editDesig({{ d.pk }}, '{{ d.name }}', '{{ d.category }}')">Edit</button>
+                <form method="POST" action="{% url 'pob_master_delete' 'designation' d.pk %}" style="display:inline"
+                      onsubmit="return confirm('Delete {{ d.name }}?')">
+                  {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPANIES -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="section-title" style="margin:0">Companies ({{ companies|length }})</div>
+        <button class="btn btn-outline-primary btn-sm" onclick="showAddForm('comp')">+ Add</button>
+      </div>
+      <div id="compForm" style="display:none;background:#f8fafc;border-radius:6px;padding:10px;margin-bottom:10px">
+        <form method="POST" action="{% url 'pob_master_save' 'company' %}">
+          {% csrf_token %}
+          <input type="hidden" name="pk" id="compPk">
+          <div class="mb-2"><input type="text" name="name" id="compName" class="form-control form-control-sm" placeholder="Company name" required></div>
+          <div class="mb-2"><input type="text" name="short_code" id="compCode" class="form-control form-control-sm" placeholder="Short code (e.g. KSD)"></div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success btn-sm">Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="hideForm('comp')">Cancel</button>
+          </div>
+        </form>
+      </div>
+      <div style="max-height:350px;overflow-y:auto">
+        <table class="table-clean" style="font-size:12px">
+          <thead><tr><th>Company</th><th>Code</th><th style="width:70px">Actions</th></tr></thead>
+          <tbody>
+            {% for c in companies %}
+            <tr>
+              <td style="font-weight:600">{{ c.name }}</td>
+              <td style="color:#64748b;font-size:11px">{{ c.short_code|default:"—" }}</td>
+              <td style="white-space:nowrap">
+                <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                        onclick="editComp({{ c.pk }}, '{{ c.name }}', '{{ c.short_code }}')">Edit</button>
+                <form method="POST" action="{% url 'pob_master_delete' 'company' c.pk %}" style="display:inline"
+                      onsubmit="return confirm('Delete {{ c.name }}?')">
+                  {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOMMODATIONS & ROOMS -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="section-title" style="margin:0">Accommodations & Rooms</div>
+        <button class="btn btn-outline-primary btn-sm" onclick="showAddForm('accomm')">+ Add</button>
+      </div>
+      <div id="accommForm" style="display:none;background:#f8fafc;border-radius:6px;padding:10px;margin-bottom:10px">
+        <form method="POST" action="{% url 'pob_master_save' 'accommodation' %}">
+          {% csrf_token %}
+          <input type="hidden" name="pk" id="accommPk">
+          <div class="mb-2"><input type="text" name="name" id="accommName" class="form-control form-control-sm" placeholder="Accommodation name" required></div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success btn-sm">Save</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="hideForm('accomm')">Cancel</button>
+          </div>
+        </form>
+      </div>
+      <div style="max-height:350px;overflow-y:auto">
+        {% for a in accomms %}
+        <div style="border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="font-size:12px">{{ a.name }}</strong>
+            <div style="display:flex;gap:4px">
+              <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                      onclick="editAccomm({{ a.pk }}, '{{ a.name }}')">Edit</button>
+              <button type="button" class="btn btn-outline-success btn-sm py-0"
+                      onclick="showAddRoom({{ a.pk }}, '{{ a.name }}')">+Room</button>
+              <form method="POST" action="{% url 'pob_master_delete' 'accommodation' a.pk %}" style="display:inline"
+                    onsubmit="return confirm('Delete {{ a.name }} and all its rooms?')">
+                {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+              </form>
+            </div>
+          </div>
+          {% if a.rooms.all %}
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">
+            {% for r in a.rooms.all %}
+            <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px">
+              {{ r.room_no }}
+              <form method="POST" action="{% url 'pob_master_delete' 'room' r.pk %}" style="display:inline"
+                    onsubmit="return confirm('Delete room {{ r.room_no }}?')">
+                {% csrf_token %}<button type="submit" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:11px;padding:0;line-height:1">&#10005;</button>
+              </form>
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ADD ROOM MODAL -->
+<div class="modal fade" id="roomModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Room to <span id="roomAccommName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{% url 'pob_master_save' 'room' %}">
+        {% csrf_token %}
+        <input type="hidden" name="accommodation_id" id="roomAccommId">
+        <input type="hidden" name="pk" value="">
+        <div class="modal-body">
+          <input type="text" name="room_no" class="form-control" placeholder="Room no (e.g. 401)" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success btn-sm">Add Room</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+function showAddForm(type) {
+  document.getElementById(type+'Form').style.display = 'block';
+  if (type === 'desig') { document.getElementById('desigPk').value=''; document.getElementById('desigName').value=''; document.getElementById('desigCat').value=''; }
+  if (type === 'comp')  { document.getElementById('compPk').value=''; document.getElementById('compName').value=''; document.getElementById('compCode').value=''; }
+  if (type === 'accomm'){ document.getElementById('accommPk').value=''; document.getElementById('accommName').value=''; }
+}
+function hideForm(type) { document.getElementById(type+'Form').style.display='none'; }
+
+function editDesig(pk, name, cat) {
+  showAddForm('desig');
+  document.getElementById('desigPk').value = pk;
+  document.getElementById('desigName').value = name;
+  document.getElementById('desigCat').value = cat;
+}
+function editComp(pk, name, code) {
+  showAddForm('comp');
+  document.getElementById('compPk').value = pk;
+  document.getElementById('compName').value = name;
+  document.getElementById('compCode').value = code;
+}
+function editAccomm(pk, name) {
+  showAddForm('accomm');
+  document.getElementById('accommPk').value = pk;
+  document.getElementById('accommName').value = name;
+}
+function showAddRoom(accommId, accommName) {
+  document.getElementById('roomAccommId').value = accommId;
+  document.getElementById('roomAccommName').textContent = accommName;
+  new bootstrap.Modal(document.getElementById('roomModal')).show();
+}
+</script>
+{% endblock %}
+{% endblock %}

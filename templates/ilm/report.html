@@ -5,7 +5,6 @@
   <div class="d-flex gap-2 flex-wrap">
     {% if request.user.profile.role != 'viewer' %}
     <a href="{% url 'ilm_add' %}" class="btn btn-success btn-sm">&#43; Add Entry</a>
-    <a href="{% url 'ilm_import' %}" class="btn btn-outline-primary btn-sm">&#8679; Import Excel</a>
     {% endif %}
     <form method="post" action="{% url 'ilm_export_pdf' %}" style="display:inline">
       {% csrf_token %}
@@ -68,6 +67,27 @@
   <div class="col-md-2 col-4"><div class="stat-card green"><h6>Saving Hrs</h6><h2>{{ stats.total_saving|floatformat:1|default:"0" }}</h2></div></div>
   <div class="col-md-2 col-4"><div class="stat-card amber"><h6>Trailer Loss</h6><h2>{{ stats.total_t_loss|default:"0" }}</h2></div></div>
 </div>
+<!-- ── CHARTS ── -->
+<div class="row g-4 mb-3">
+  <!-- Donut — Move Status -->
+  <div class="col-md-4">
+    <div class="card-box" style="height:300px">
+      <div class="section-title">Move Status Breakdown</div>
+      <div style="position:relative;height:230px">
+        <canvas id="statusDonut"></canvas>
+      </div>
+    </div>
+  </div>
+  <!-- Bar — Rig-wise ILM Hours -->
+  <div class="col-md-8">
+    <div class="card-box" style="height:300px">
+      <div class="section-title">Rig-wise ILM Hours</div>
+      <div style="position:relative;height:230px">
+        <canvas id="rigBar"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- RIG SUMMARY -->
 {% if rig_summary %}
@@ -107,7 +127,7 @@
     <table class="table-clean" style="font-size:12px">
       <thead>
         <tr>
-          <th>Date</th><th>Rig</th><th>Status</th><th>From</th><th>To</th>
+          <th>Date</th><th>Start Date</th><th>Start Time</th><th>End Date</th><th>End Time</th><th>Rig</th><th>Status</th><th>From</th><th>To</th>
           <th>Dist</th><th>Exp Hrs</th><th>Actual Hrs</th><th>Extra</th><th>Saving</th>
           <th>Trailers</th><th>T.Loss</th><th>T.Vendor</th>
           <th>Crane</th><th>C.Vendor</th>
@@ -123,6 +143,10 @@
         {% with trailers=e.equipment_usage.all cranes=e.equipment_usage.all %}
         <tr>
           <td style="white-space:nowrap">{{ e.date }}</td>
+          <td style="white-space:nowrap">{{ e.start_date|default:"—" }}</td>
+          <td style="white-space:nowrap">{{ e.start_time|time:"H:i"|default:"—" }}</td>
+          <td style="white-space:nowrap">{{ e.end_date|default:"—" }}</td>
+          <td style="white-space:nowrap">{{ e.end_time|time:"H:i"|default:"—" }}</td>
           <td><strong>{{ e.rig }}</strong></td>
           <td><span class="badge-{% if e.move_status == 'Active' %}active{% elif e.move_status == 'Standby' %}standby{% elif e.move_status == 'Internal' %}internal{% else %}idle{% endif %}">{{ e.move_status }}</span></td>
           <td>{{ e.ilm_from_location|default:"—" }}</td>
@@ -244,7 +268,7 @@
           <!-- Quick filter by type -->
           <div class="d-flex gap-2 mb-3 flex-wrap">
             <span style="font-size:12px;color:#64748b;align-self:center">Filter:</span>
-          {% for type in type_filters %}
+            {% for type in eq_type_list %}
             <button type="button" class="btn btn-outline-secondary btn-sm py-0"
                     onclick="filterEq('{{ type }}')">{{ type }}</button>
             {% endfor %}
@@ -280,31 +304,68 @@
 </div>
 {% endif %}
 
+
+
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-function openAddEq(entryPk, role, rig, date) {
-  document.getElementById('eqRole').value    = role;
-  document.getElementById('eqEntryInfo').textContent = rig + ' / ' + date + ' (' + role + ')';
-  document.getElementById('addEqForm').action = '/ilm/' + entryPk + '/equipment/add/';
-  // Auto-filter by role type
-  filterEq(role);
-  new bootstrap.Modal(document.getElementById('addEqModal')).show();
+window.addEventListener('load', function() {
+  const statusLabels = {{ status_labels|safe }};
+  const statusCounts = {{ status_counts|safe }};
+  const rigLabels    = {{ rig_labels|safe }};
+  const rigHrs       = {{ rig_hrs|safe }};
+  if (statusLabels.length > 0) {
+    new Chart(document.getElementById('statusDonut'), {
+      type: 'doughnut',
+      data: { labels: statusLabels, datasets: [{ data: statusCounts,
+        backgroundColor: ['#22c55e','#f59e0b','#ef4444','#8b5cf6'],
+        borderWidth: 2, borderColor: '#fff' }] },
+      options: { responsive:true, maintainAspectRatio:false, cutout:'60%',
+        plugins: { legend: { position:'bottom' } } }
+    });
+  }
+  if (rigLabels.length > 0) {
+    new Chart(document.getElementById('rigBar'), {
+      type: 'bar',
+      data: { labels: rigLabels, datasets: [{ label:'ILM Hours', data: rigHrs,
+        backgroundColor:'#3b82f6', borderRadius:6 }] },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins: { legend: { display:false } },
+        scales: { y: { beginAtZero:true }, x: { grid: { display:false } } } }
+    });
+  }
+});
+
+function openAddEq(pk, role, rig, date) {
+  document.getElementById('eqEntryInfo').textContent = rig + ' / ' + date;
+  document.getElementById('eqRole').value = role;
+  document.getElementById('addEqForm').action = '/ilm/' + pk + '/equipment/add/';
+  // Filter equipment list by role
+  filterEqByRole(role);
+  var modal = new bootstrap.Modal(document.getElementById('addEqModal'));
+  modal.show();
+}
+
+function filterEqByRole(role) {
+  const select = document.getElementById('eqSelect');
+  for (let opt of select.options) {
+    const type = opt.dataset.type || '';
+    if (role === 'Trailer') {
+      opt.style.display = type === 'Trailer' ? '' : 'none';
+    } else if (role === 'Crane') {
+      opt.style.display = type === 'Crane' ? '' : 'none';
+    } else {
+      opt.style.display = '';
+    }
+  }
+  select.value = null;
 }
 
 function filterEq(type) {
-  const sel = document.getElementById('eqSelect');
-  if (!sel) return;
-  Array.from(sel.options).forEach(function(opt) {
-    if (type === 'All') {
-      opt.style.display = '';
-    } else {
-      opt.style.display = opt.dataset.type === type ? '' : 'none';
-    }
-  });
-  // Deselect hidden options
-  Array.from(sel.options).forEach(function(opt) {
-    if (opt.style.display === 'none') opt.selected = false;
-  });
+  const select = document.getElementById('eqSelect');
+  for (let opt of select.options) {
+    opt.style.display = (opt.dataset.type === type || type === 'All') ? '' : 'none';
+  }
 }
 </script>
 {% endblock %}

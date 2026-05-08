@@ -5,6 +5,14 @@
   <div class="d-flex gap-2">
     <a href="{% url 'hsd_add_receipt' %}" class="btn btn-success btn-sm">&#10010; Add Receipt</a>
     <a href="{% url 'hsd_add_issue' %}"   class="btn btn-danger btn-sm">&#10010; Add Issue</a>
+    <form method="post" action="{% url 'hsd_export_pdf' %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="rig"   value="{{ filters.rig }}">
+      <input type="hidden" name="from"  value="{{ filters.from }}">
+      <input type="hidden" name="to"    value="{{ filters.to }}">
+      <input type="hidden" name="month" value="{{ filters.month }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm">&#8595; PDF</button>
+    </form>
     <form method="post" action="{% url 'hsd_export_excel' %}" style="display:inline">
       {% csrf_token %}
       <input type="hidden" name="rig"   value="{{ filters.rig }}">
@@ -127,7 +135,7 @@
 <div class="card-box mt-4">
   <div class="section-title d-flex justify-content-between align-items-center">
     Recent Daily Stock
-    <a href="{% url 'hsd_stock' %}" style="font-size:12px;font-weight:400">View all &rarr;</a>
+    <a href="{% url 'hsd_stock' %}" style="font-size:12px;font-weight:400">View all →</a>
   </div>
   <div class="table-responsive">
     <table class="table-clean">
@@ -151,9 +159,15 @@
     </table>
   </div>
 </div>
-{% endblock %}
 
+<!-- TREND CHART -->
+<div class="card-box mt-4">
+  <div class="section-title">Daily HSD Trend (Received vs Issued)</div>
+  <canvas id="trendChart" height="80"></canvas>
+</div>
+{% endblock %}
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 const purposes = [{% for p in issue_by_purpose %}'{{ p.purpose }}',{% endfor %}];
 const qtys     = [{% for p in issue_by_purpose %}{{ p.total|floatformat:1 }},{% endfor %}];
@@ -167,5 +181,47 @@ if (purposes.length > 0) {
     options: { responsive:true, plugins:{ legend:{ position:'right' } } }
   });
 }
+
+// Line Chart
+const trendLabels = [{% for s in stock_entries %}'{{ s.date }}',{% endfor %}];
+const trendReceived = [{% for s in stock_entries %}{{ s.receipts|floatformat:1 }},{% endfor %}];
+const trendIssued   = [{% for s in stock_entries %}{{ s.consumption|floatformat:1 }},{% endfor %}];
+if (trendLabels.length > 0) {
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: trendLabels,
+      datasets: [
+        {
+          label: 'Received (L)',
+          data: trendReceived,
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22,163,74,0.1)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 4
+        },
+        {
+          label: 'Issued (L)',
+          data: trendIssued,
+          borderColor: '#dc2626',
+          backgroundColor: 'rgba(220,38,38,0.1)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        x: { ticks: { maxRotation: 45 } },
+        y: { beginAtZero: true, title: { display: true, text: 'Litres' } }
+      }
+    }
+  });
+}
 </script>
 {% endblock %}
+

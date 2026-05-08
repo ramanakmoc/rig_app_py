@@ -14,12 +14,15 @@ VALID_ROLES = ['admin', 'supervisor', 'viewer']
 @login_required
 @admin_required
 def user_list(request):
+    from masters.models import Rig
     users = User.objects.select_related('profile').order_by('id')
+    all_rigs = list(Rig.objects.values_list('rig_name', flat=True).order_by('rig_name'))
 
     return render(request, 'core/user_list.html', {
         'page_title': 'User Management',
-        'users': users,
-        'roles': [('admin', 'Admin'), ('supervisor', 'Supervisor'), ('viewer', 'Viewer')],
+        'users':      users,
+        'roles':      [('admin', 'Admin'), ('supervisor', 'Supervisor'), ('viewer', 'Viewer')],
+        'all_rigs':   all_rigs,
     })
 
 
@@ -118,6 +121,23 @@ def change_role(request):
 
     return redirect('user_list')
 
+
+@login_required
+@admin_required
+def assign_rigs(request):
+    if request.method == 'POST':
+        from masters.models import Rig
+        uid        = request.POST.get('uid')
+        rig_list   = request.POST.getlist('rigs')  # multiple checkboxes
+        user       = get_object_or_404(User, pk=uid)
+        profile    = user.profile
+        profile.assigned_rigs = ','.join(rig_list)
+        profile.save()
+        if rig_list:
+            messages.success(request, f'{user.username} assigned to: {", ".join(rig_list)}')
+        else:
+            messages.success(request, f'{user.username} now has access to ALL rigs')
+    return redirect('user_list')
 
 @login_required
 def profile_view(request):

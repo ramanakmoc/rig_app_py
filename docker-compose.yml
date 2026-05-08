@@ -1,0 +1,68 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      retries: 5
+
+  app:
+    build: .
+    restart: always
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_docker
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+      - .:/app   # mount code for easy edits
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/rig_app.conf:/etc/nginx/conf.d/default.conf
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
+
+  cron:
+    build: .
+    restart: always
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_docker
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: []
+    command: >
+      sh -c "echo '30 5 * * * cd /app && python manage.py send_daily_report >> /var/log/daily_report.log 2>&1' | crontab -
+      && crond -f"
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:

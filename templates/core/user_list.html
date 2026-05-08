@@ -10,7 +10,7 @@
   <div class="table-responsive">
     <table class="table-clean">
       <thead>
-        <tr><th>#</th><th>Username</th><th>Role</th><th>Member Since</th><th>Actions</th></tr>
+        <tr><th>#</th><th>Username</th><th>Role</th><th>Assigned Rigs</th><th>Member Since</th><th>Actions</th></tr>
       </thead>
       <tbody>
         {% for u in users %}
@@ -33,12 +33,25 @@
             </span>
             {% endwith %}
           </td>
+          <td style="font-size:12px">
+            {% with rigs=u.profile.get_assigned_rigs %}
+            {% if rigs %}
+              {% for r in rigs %}
+              <span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin:1px;display:inline-block">{{ r }}</span>
+              {% endfor %}
+            {% else %}
+              <span style="color:#16a34a;font-size:11px">All Rigs</span>
+            {% endif %}
+            {% endwith %}
+          </td>
           <td style="font-size:12px;color:#64748b">{{ u.date_joined|date:"d M Y" }}</td>
           <td style="white-space:nowrap">
             <button type="button" class="btn btn-outline-secondary btn-sm py-0"
                     onclick="openReset({{ u.pk }}, '{{ u.username }}')">Reset Pwd</button>
             <button type="button" class="btn btn-outline-primary btn-sm py-0"
                     onclick="openRole({{ u.pk }}, '{{ u.username }}', '{{ u.profile.role|default:"viewer" }}')">Role</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0"
+                    onclick="openRigs({{ u.pk }}, '{{ u.username }}', '{{ u.profile.assigned_rigs }}')">Rigs</button>
             {% if u != request.user %}
             <button type="button" class="btn btn-outline-danger btn-sm py-0"
                     onclick="openDel({{ u.pk }}, '{{ u.username }}')">Del</button>
@@ -57,7 +70,7 @@
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title">Create New User</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <form method="POST">
+      <form method="POST" action="{% url 'create_user' %}">
         {% csrf_token %}<input type="hidden" name="action" value="create">
         <div class="modal-body row g-3">
           <div class="col-12"><label class="form-label">Username</label>
@@ -85,7 +98,7 @@
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title">Reset Password — <span id="resetName"></span></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <form method="POST">
+      <form method="POST" action="{% url 'reset_password' %}">
         {% csrf_token %}<input type="hidden" name="action" value="reset_password">
         <input type="hidden" name="uid" id="resetUid">
         <div class="modal-body">
@@ -107,7 +120,7 @@
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title">Change Role — <span id="roleName"></span></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <form method="POST">
+      <form method="POST" action="{% url 'change_role' %}">
         {% csrf_token %}<input type="hidden" name="action" value="change_role">
         <input type="hidden" name="uid" id="roleUid">
         <div class="modal-body">
@@ -131,7 +144,7 @@
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title">Delete User</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <form method="POST">
+      <form method="POST" id="delForm" action="/users/0/delete/">
         {% csrf_token %}<input type="hidden" name="action" value="delete">
         <input type="hidden" name="uid" id="delUid">
         <div class="modal-body">
@@ -141,6 +154,48 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ASSIGN RIGS MODAL -->
+<div class="modal fade" id="rigsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Assign Rigs — <span id="rigsUsername"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{% url 'assign_rigs' %}">
+        {% csrf_token %}
+        <input type="hidden" name="uid" id="rigsUid">
+        <div class="modal-body">
+          <p style="font-size:12px;color:#64748b;margin-bottom:12px">
+            Check rigs this user can access. Leave all unchecked for access to ALL rigs.
+          </p>
+          <div class="row g-2">
+            {% for r in all_rigs %}
+            <div class="col-6">
+              <div class="form-check" style="background:#f8fafc;border-radius:6px;padding:8px 12px">
+                <input class="form-check-input rig-check" type="checkbox"
+                       name="rigs" value="{{ r }}" id="rig_{{ r }}">
+                <label class="form-check-label fw-semibold" for="rig_{{ r }}">{{ r }}</label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div style="margin-top:12px;padding:8px;background:#f0fdf4;border-radius:6px;font-size:11px;color:#16a34a">
+            ✓ Admin users always have access to all rigs regardless of this setting.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  onclick="clearRigs()">Clear All (All Rigs)</button>
+          <button type="button" class="btn btn-secondary btn-sm"
+                  data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </div>
       </form>
     </div>
@@ -163,7 +218,30 @@ function openRole(uid, name, role) {
 function openDel(uid, name) {
   document.getElementById('delUid').value = uid;
   document.getElementById('delName').textContent = name;
+  document.getElementById('delForm').action = '/users/' + uid + '/delete/';
   new bootstrap.Modal(document.getElementById('delModal')).show();
+}
+
+function openRigs(uid, username, assignedRigs) {
+  document.getElementById('rigsUid').value      = uid;
+  document.getElementById('rigsUsername').textContent = username;
+
+  // Uncheck all first
+  document.querySelectorAll('.rig-check').forEach(cb => cb.checked = false);
+
+  // Check assigned rigs
+  if (assignedRigs && assignedRigs.trim()) {
+    const rigs = assignedRigs.split(',').map(r => r.trim());
+    rigs.forEach(rig => {
+      const cb = document.getElementById('rig_' + rig);
+      if (cb) cb.checked = true;
+    });
+  }
+  new bootstrap.Modal(document.getElementById('rigsModal')).show();
+}
+
+function clearRigs() {
+  document.querySelectorAll('.rig-check').forEach(cb => cb.checked = false);
 }
 </script>
 {% endblock %}

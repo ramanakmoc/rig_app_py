@@ -2,17 +2,52 @@
 {% block content %}
 <div class="page-header">
   <h3>&#9661; HSD Issues</h3>
-  <a href="{% url 'hsd_add_issue' %}" class="btn btn-danger btn-sm">&#10010; Add Issue</a>
+  <a href="{% url 'hsd_add_issue' %}" class="btn btn-outline-danger btn-sm">&#10010; Single Issue</a>
+  <a href="{% url 'hsd_bulk_issue' %}" class="btn btn-danger btn-sm">&#9783; Bulk Daily Entry</a>
 </div>
 <div class="row g-3 mb-3">
   <div class="col-md-3 col-6"><div class="stat-card red"><h6>Total Issued</h6><h2>{{ stats.total_qty|floatformat:1|default:"0" }}</h2><small>Litres</small></div></div>
   <div class="col-md-3 col-6"><div class="stat-card blue"><h6>Transactions</h6><h2>{{ stats.count|default:"0" }}</h2></div></div>
 </div>
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6">
+      <label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">Month</label>
+      <input type="month" name="month" class="form-control form-control-sm" value="{{ filters.month }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'hsd_issues' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
 <div class="card-box">
   <div class="section-title">HSD Issues</div>
   <div class="table-responsive">
     <table class="table-clean">
-      <thead><tr><th>Date</th><th>Rig</th><th>Purpose</th><th>Issued To</th><th>Equipment</th><th>Qty (L)</th><th>Issued By</th><th>Remarks</th>{% if request.user.profile.role == 'admin' %}<th>Del</th>{% endif %}</tr></thead>
+      <thead>
+        <tr>
+          <th>Date</th><th>Rig</th><th>Purpose</th><th>Issued To</th>
+          <th>Equipment</th><th>Qty (L)</th><th>Start Rdg</th><th>End Rdg</th><th>Hrs Run</th><th>Issued By</th><th>Remarks</th>
+          <th>Edit</th>
+          {% if request.user.profile.role == 'admin' %}<th>Del</th>{% endif %}
+        </tr>
+      </thead>
       <tbody>
         {% for i in issues %}
         <tr>
@@ -22,8 +57,12 @@
           <td>{{ i.issued_to }}</td>
           <td style="font-size:12px">{{ i.equipment|default:"—" }}</td>
           <td style="color:#dc2626;font-weight:700">{{ i.quantity_ltrs|floatformat:1 }}</td>
-          <td style="font-size:12px">{{ i.issued_by|default:"—" }}</td>
+          <td style="font-size:12px">{{ i.meter_start|default:"—" }}</td>
+            <td style="font-size:12px">{{ i.meter_end|default:"—" }}</td>
+            <td style="font-size:12px;font-weight:600;color:#1d4ed8">{{ i.meter_hours|default:"—" }}</td>
+            <td style="font-size:12px">{{ i.issued_by|default:"—" }}</td>
           <td style="font-size:12px;color:#64748b">{{ i.remarks|default:"—" }}</td>
+          <td><a href="{% url 'hsd_edit_issue' i.pk %}" class="btn btn-outline-primary btn-sm py-0">Edit</a></td>
           {% if request.user.profile.role == 'admin' %}
           <td>
             <form method="post" action="{% url 'hsd_delete_issue' i.pk %}" style="display:inline" onsubmit="return confirm('Delete?')">
@@ -33,7 +72,7 @@
           {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="9" class="text-center text-muted py-4">No issues found.</td></tr>
+        <tr><td colspan="10" class="text-center text-muted py-4">No issues found.</td></tr>
         {% endfor %}
       </tbody>
     </table>

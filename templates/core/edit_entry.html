@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load core_extras %}
 {% block content %}
 <div class="page-header">
   <h3>&#9998; Edit Entry — {{ entry.rig }} / {{ entry.date }}</h3>
@@ -78,6 +79,7 @@
   </form>
 </div>
 
+{% endblock %}
 {% block extra_js %}
 <script>
 function updateTotal() {
@@ -92,5 +94,4 @@ function updateTotal() {
 }
 updateTotal();
 </script>
-{% endblock %}
 {% endblock %}

@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>�- Operations Overview — {{ month_label }}</h3>
+  <span style="font-size:13px;color:#64748b">All figures for current month</span>
+</div>
+
+<!-- TOP SUMMARY CARDS -->
+<div class="row g-3 mb-4">
+  <div class="col-md-2 col-6">
+    <div class="stat-card blue">
+      <h6>Active Rigs</h6>
+      <h2>{{ active_rigs }}</h2>
+      <small>Fleet</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card green">
+      <h6>Fleet Efficiency</h6>
+      <h2>{{ fleet_eff }}%</h2>
+      <small>Op+ILM / Total</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card blue">
+      <h6>Operating Hrs</h6>
+      <h2>{{ rig_stats.total_op|floatformat:0 }}</h2>
+      <small>This Month</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card amber">
+      <h6>HSD Balance</h6>
+      <h2>{{ hsd_balance }}</h2>
+      <small>Litres</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card red">
+      <h6>HSD Issued</h6>
+      <h2>{{ hsd_issued|floatformat:0 }}</h2>
+      <small>Litres</small>
+    </div>
+  </div>
+  <div class="col-md-2 col-6">
+    <div class="stat-card blue">
+      <h6>ILM Moves</h6>
+      <h2>{{ ilm_stats.total }}</h2>
+      <small>This Month</small>
+    </div>
+  </div>
+</div>
+
+<!-- THREE PANELS -->
+<div class="row g-4">
+
+  <!-- RIG PERFORMANCE -->
+  <div class="col-md-4">
+    <div class="card-box h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-title mb-0">&#9968; Rig Performance</div>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-primary btn-sm">View Details →</a>
+      </div>
+      <canvas id="rigChart" height="160"></canvas>
+      <div class="mt-3">
+        <table class="table-clean" style="font-size:12px">
+          <thead><tr><th>Rig</th><th>Op Hrs</th><th>ILM</th><th>Eff%</th></tr></thead>
+          <tbody>
+            {% for r in rig_summary %}
+            <tr>
+              <td><strong>{{ r.rig }}</strong></td>
+              <td style="color:#1d4ed8">{{ r.op }}</td>
+              <td>{{ r.ilm }}</td>
+              <td style="font-weight:700;color:{% if r.efficiency >= 80 %}#16a34a{% else %}#dc2626{% endif %}">{{ r.efficiency }}%</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-muted text-center">No data this month</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-2 pt-2" style="border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8">
+        SB: {{ rig_stats.total_sb|floatformat:0 }}h &nbsp;|&nbsp;
+        BD: {{ rig_stats.total_bd|floatformat:0 }}h &nbsp;|&nbsp;
+        ZR: {{ rig_stats.total_zr|floatformat:0 }}h
+      </div>
+    </div>
+  </div>
+
+  <!-- HSD DIESEL -->
+  <div class="col-md-4">
+    <div class="card-box h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-title mb-0">&#9651; HSD Diesel</div>
+        <a href="{% url 'hsd_dashboard' %}" class="btn btn-outline-primary btn-sm">View Details →</a>
+      </div>
+      <canvas id="hsdChart" height="160"></canvas>
+      <div class="mt-3">
+        <table class="table-clean" style="font-size:12px">
+          <thead><tr><th>Rig</th><th>Received</th><th>Issued</th><th>Balance</th></tr></thead>
+          <tbody>
+            {% for r in hsd_rig_summary %}
+            <tr>
+              <td><strong>{{ r.rig }}</strong></td>
+              <td style="color:#16a34a">{{ r.received|floatformat:0 }}</td>
+              <td style="color:#dc2626">{{ r.issued|floatformat:0 }}</td>
+              <td style="font-weight:700;color:{% if r.balance >= 0 %}#1d4ed8{% else %}#dc2626{% endif %}">{{ r.balance }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-muted text-center">No data this month</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-2 pt-2" style="border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8">
+        Received: {{ hsd_received|floatformat:0 }} L &nbsp;|&nbsp; Issued: {{ hsd_issued|floatformat:0 }} L
+      </div>
+    </div>
+  </div>
+
+  <!-- ILM -->
+  <div class="col-md-4">
+    <div class="card-box h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-title mb-0">&#8644; ILM Movement</div>
+        <a href="{% url 'ilm_report' %}" class="btn btn-outline-primary btn-sm">View Details →</a>
+      </div>
+      <canvas id="ilmChart" height="160"></canvas>
+      <div class="mt-3">
+        <table class="table-clean" style="font-size:12px">
+          <thead><tr><th>Rig</th><th>Moves</th><th>Hrs</th><th>Saving</th><th>T.Loss</th></tr></thead>
+          <tbody>
+            {% for r in ilm_rig_summary %}
+            <tr>
+              <td><strong>{{ r.rig }}</strong></td>
+              <td>{{ r.entries }}</td>
+              <td style="color:#8b5cf6">{{ r.hrs|floatformat:1|default:"—" }}</td>
+              <td style="color:#16a34a">{{ r.saving|floatformat:1|default:"—" }}</td>
+              <td style="color:{% if r.t_loss > 0 %}#dc2626{% else %}#94a3b8{% endif %}">{{ r.t_loss }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-muted text-center">No ILM this month</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-2 pt-2" style="border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8">
+        Total ILM Hrs: {{ ilm_stats.hrs|floatformat:1 }} &nbsp;|&nbsp;
+        Saving: {{ ilm_stats.saving|floatformat:1 }} h &nbsp;|&nbsp;
+        T.Loss: {{ ilm_stats.t_loss }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TREND CHART -->
+<div class="card-box mt-4">
+  <div class="section-title">7-Day Operational Trend</div>
+  <canvas id="trendChart" height="60"></canvas>
+</div>
+
+
+<!-- HSD & ILM TREND ROW -->
+<div class="row g-4 mt-0">
+  <div class="col-md-6">
+    <div class="card-box">
+      <div class="section-title">7-Day HSD Trend (Received vs Issued)</div>
+      <canvas id="hsdTrendChart" height="80"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card-box">
+      <div class="section-title">7-Day ILM Trend (Hours & Moves)</div>
+      <canvas id="ilmTrendChart" height="80"></canvas>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Rig bar chart
+const rigLabels = [{% for r in rig_summary %}'{{ r.rig }}',{% endfor %}];
+const rigOp     = [{% for r in rig_summary %}{{ r.op }},{% endfor %}];
+const rigIlm    = [{% for r in rig_summary %}{{ r.ilm }},{% endfor %}];
+const rigSb     = [{% for r in rig_summary %}{{ r.sb }},{% endfor %}];
+
+new Chart(document.getElementById('rigChart'), {
+  type: 'bar',
+  data: {
+    labels: rigLabels,
+    datasets: [
+      { label: 'Operating', data: rigOp,  backgroundColor: '#3b82f6' },
+      { label: 'ILM',       data: rigIlm, backgroundColor: '#8b5cf6' },
+      { label: 'Standby',   data: rigSb,  backgroundColor: '#f59e0b' },
+    ]
+  },
+  options: { responsive:true, plugins:{ legend:{ position:'bottom' } },
+    scales:{ x:{ stacked:false }, y:{ beginAtZero:true } } }
+});
+
+// HSD donut
+const hsdPurposeLabels = [{% for p in hsd_by_purpose %}'{{ p.purpose }}',{% endfor %}];
+const hsdPurposeData   = [{% for p in hsd_by_purpose %}{{ p.total|floatformat:1 }},{% endfor %}];
+if (hsdPurposeLabels.length > 0) {
+  new Chart(document.getElementById('hsdChart'), {
+    type: 'doughnut',
+    data: {
+      labels: hsdPurposeLabels,
+      datasets: [{ data: hsdPurposeData,
+        backgroundColor: ['#3b82f6','#ef4444','#f59e0b','#22c55e','#8b5cf6','#14b8a6'] }]
+    },
+    options: { responsive:true, plugins:{ legend:{ position:'bottom' } } }
+  });
+} else {
+  document.getElementById('hsdChart').parentElement.querySelector('canvas').style.display='none';
+}
+
+// ILM bar
+const ilmLabels  = [{% for r in ilm_rig_summary %}'{{ r.rig }}',{% endfor %}];
+const ilmHrs     = [{% for r in ilm_rig_summary %}{{ r.hrs|floatformat:1|default:0 }},{% endfor %}];
+const ilmSaving  = [{% for r in ilm_rig_summary %}{{ r.saving|floatformat:1|default:0 }},{% endfor %}];
+if (ilmLabels.length > 0) {
+  new Chart(document.getElementById('ilmChart'), {
+    type: 'bar',
+    data: {
+      labels: ilmLabels,
+      datasets: [
+        { label: 'ILM Hrs',    data: ilmHrs,    backgroundColor: '#8b5cf6' },
+        { label: 'Saving Hrs', data: ilmSaving, backgroundColor: '#22c55e' },
+      ]
+    },
+    options: { responsive:true, plugins:{ legend:{ position:'bottom' } },
+      scales:{ y:{ beginAtZero:true } } }
+  });
+} else {
+  document.getElementById('ilmChart').style.display='none';
+}
+
+// 7-day trend
+const trendLabels = {{ trend_labels_json|safe }};
+const trendOp     = {{ trend_op_json|safe }};
+const trendIlm    = {{ trend_ilm_json|safe }};
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: trendLabels,
+    datasets: [
+      { label:'Operating Hrs', data:trendOp,  borderColor:'#3b82f6',
+        backgroundColor:'rgba(59,130,246,0.1)', tension:0.3, fill:true, pointRadius:4 },
+      { label:'ILM Hrs',       data:trendIlm, borderColor:'#8b5cf6',
+        backgroundColor:'rgba(139,92,246,0.1)', tension:0.3, fill:true, pointRadius:4 },
+    ]
+  },
+  options: { responsive:true, plugins:{ legend:{ position:'top' } },
+    scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Hours' } } } }
+});
+
+// HSD 7-day trend
+const hsdTrendLabels   = {{ hsd_trend_labels_json|safe }};
+const hsdTrendReceived = {{ hsd_trend_received_json|safe }};
+const hsdTrendIssued   = {{ hsd_trend_issued_json|safe }};
+new Chart(document.getElementById('hsdTrendChart'), {
+  type: 'line',
+  data: {
+    labels: hsdTrendLabels,
+    datasets: [
+      { label:'Received (L)', data:hsdTrendReceived, borderColor:'#16a34a',
+        backgroundColor:'rgba(22,163,74,0.1)', tension:0.3, fill:true, pointRadius:4 },
+      { label:'Issued (L)',   data:hsdTrendIssued,   borderColor:'#dc2626',
+        backgroundColor:'rgba(220,38,38,0.1)',  tension:0.3, fill:true, pointRadius:4 },
+    ]
+  },
+  options: { responsive:true, plugins:{ legend:{ position:'top' } },
+    scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Litres' } } } }
+});
+
+// ILM 7-day trend
+const ilmTrendLabels = {{ ilm_trend_labels_json|safe }};
+const ilmTrendHrs    = {{ ilm_trend_hrs_json|safe }};
+const ilmTrendMoves  = {{ ilm_trend_moves_json|safe }};
+new Chart(document.getElementById('ilmTrendChart'), {
+  type: 'bar',
+  data: {
+    labels: ilmTrendLabels,
+    datasets: [
+      { label:'ILM Hrs',  data:ilmTrendHrs,   backgroundColor:'#8b5cf6',
+        borderRadius:4, yAxisID:'y' },
+      { label:'Moves',    data:ilmTrendMoves,  backgroundColor:'#22c55e',
+        borderRadius:4, yAxisID:'y1', type:'line',
+        borderColor:'#22c55e', pointRadius:4, tension:0.3, fill:false },
+    ]
+  },
+  options: { responsive:true, plugins:{ legend:{ position:'top' } },
+    scales:{
+      y:  { beginAtZero:true, title:{ display:true, text:'Hours' }, position:'left' },
+      y1: { beginAtZero:true, title:{ display:true, text:'Moves' }, position:'right',
+            grid:{ drawOnChartArea:false } }
+    }
+  }
+});
+</script>
+{% endblock %}

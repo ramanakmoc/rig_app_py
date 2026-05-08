@@ -15,7 +15,10 @@ def dashboard(request):
     rig_filter  = request.GET.get('rig', '')
     time_filter = request.GET.get('period', 'month')
 
-    if time_filter == 'week':
+    if time_filter == 'yesterday':
+        date_from    = today - datetime.timedelta(days=1)
+        period_label = 'Yesterday'
+    elif time_filter == 'week':
         date_from    = today - datetime.timedelta(days=6)
         period_label = 'Last 7 Days'
     elif time_filter == 'month':
@@ -24,6 +27,12 @@ def dashboard(request):
     elif time_filter == '3month':
         date_from    = today - datetime.timedelta(days=89)
         period_label = 'Last 3 Months'
+    elif time_filter == '6month':
+        date_from    = today - datetime.timedelta(days=179)
+        period_label = 'Last 6 Months'
+    elif time_filter == '9month':
+        date_from    = today - datetime.timedelta(days=269)
+        period_label = 'Last 9 Months'
     elif time_filter == 'year':
         date_from    = today.replace(month=1, day=1)
         period_label = str(today.year)
@@ -38,13 +47,6 @@ def dashboard(request):
     if rig_filter:
         qs = qs.filter(rig=rig_filter)
 
-    # If no data in selected period, fall back to all time
-    if not qs.exists() and date_from:
-        date_from    = None
-        period_label = 'All Time'
-        qs = RigDailyLog.objects.all()
-        if rig_filter:
-            qs = qs.filter(rig=rig_filter)
 
     # ── Summary stats ──
     stats = qs.aggregate(
@@ -63,7 +65,7 @@ def dashboard(request):
     total_all = (float(stats['total_op']) + float(stats['total_sb']) +
                  float(stats['total_bd']) + float(stats['total_ilm']) +
                  float(stats['total_zr']))
-    fleet_efficiency = round(float(stats['total_op']) / total_all * 100, 1) if total_all > 0 else 0
+    fleet_efficiency = round((float(stats["total_op"]) + float(stats["total_ilm"])) / total_all * 100, 1) if total_all > 0 else 0
 
     # Active rig count
     active_rigs_count = Rig.objects.filter(rig_status='Active').count()
@@ -114,7 +116,7 @@ def dashboard(request):
         for k in ('op_hrs','sb_hrs','bd_hrs','ilm_hrs','zr_hrs'):
             rs[k] = float(rs[k] or 0)
         tot = rs['op_hrs']+rs['sb_hrs']+rs['bd_hrs']+rs['ilm_hrs']+rs['zr_hrs']
-        rs['efficiency'] = round(rs['op_hrs'] / tot * 100, 1) if tot > 0 else 0
+        rs["efficiency"] = round((rs["op_hrs"] + rs["ilm_hrs"]) / tot * 100, 1) if tot > 0 else 0
 
     # ── All rigs list for filter ──
     all_rigs = list(Rig.objects.values_list('rig_name', flat=True).order_by('rig_name'))

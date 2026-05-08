@@ -4,25 +4,34 @@
   <h3>&#128200; Monthly Report</h3>
   <form method="post" action="{% url 'export_pdf_monthly' %}" style="display:inline">
     {% csrf_token %}
-    <input type="hidden" name="rig"  value="{{ filters.rig }}">
-    <input type="hidden" name="from" value="{{ filters.from }}">
-    <input type="hidden" name="to"   value="{{ filters.to }}">
+    <input type="hidden" name="rig"        value="{{ filters.rig }}">
+    <input type="hidden" name="from_month" value="{{ filters.from_month }}">
+    <input type="hidden" name="to_month"   value="{{ filters.to_month }}">
     <button type="submit" class="btn btn-outline-danger btn-sm">&#8595; PDF</button>
   </form>
 </div>
 <div class="card-box py-3 mb-3">
   <form method="GET" class="row g-2 align-items-end">
-    <div class="col-md-2 col-6"><label class="form-label">Rig</label>
+    <div class="col-md-2 col-6">
+      <label class="form-label">Rig</label>
       <select name="rig" class="form-select form-select-sm">
         <option value="">All Rigs</option>
         {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-md-2 col-6"><label class="form-label">From</label>
-      <input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}">
+    <div class="col-md-2 col-6">
+      <label class="form-label">From Month</label>
+      <select name="from_month" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for m in month_choices %}<option value="{{ m.value }}" {% if filters.from_month == m.value %}selected{% endif %}>{{ m.label }}</option>{% endfor %}
+      </select>
     </div>
-    <div class="col-md-2 col-6"><label class="form-label">To</label>
-      <input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}">
+    <div class="col-md-2 col-6">
+      <label class="form-label">To Month</label>
+      <select name="to_month" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for m in month_choices %}<option value="{{ m.value }}" {% if filters.to_month == m.value %}selected{% endif %}>{{ m.label }}</option>{% endfor %}
+      </select>
     </div>
     <div class="col-auto">
       <button type="submit" class="btn btn-primary btn-sm">Apply</button>
@@ -30,28 +39,104 @@
     </div>
   </form>
 </div>
+
+<!-- CHARTS ROW -->
+<div class="row g-4 mb-4">
+  <div class="col-md-7">
+    <div class="card-box">
+      <div class="section-title">Monthly Operating Hours by Rig</div>
+      <canvas id="monthlyBarChart" height="100"></canvas>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="card-box">
+      <div class="section-title">Hours Distribution</div>
+      <canvas id="monthlyDonut" height="160"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- TABLE -->
 <div class="card-box">
   <div class="section-title">Monthly Summary</div>
   <div class="table-responsive">
     <table class="table-clean">
-      <thead><tr><th>Month</th><th>Rig</th><th>Op Hrs</th><th>SB Hrs</th><th>BD Hrs</th><th>ILM Hrs</th><th>Zero Rate</th><th>Entries</th></tr></thead>
+      <thead>
+        <tr><th>Month</th><th>Rig</th><th>Op Hrs</th><th>SB Hrs</th><th>BD Hrs</th><th>ILM Hrs</th><th>Zero Rate</th><th>Entries</th><th>Efficiency %</th></tr>
+      </thead>
       <tbody>
         {% for m in monthly %}
+        {% with total=m.op_hrs|add:m.sb_hrs|add:m.bd_hrs|add:m.ilm_hrs|add:m.zr_hrs %}
         <tr>
           <td><strong>{{ m.month|date:"M Y" }}</strong></td>
-          <td><strong>{{ m.rig }}</strong></td>
+          <td>{{ m.rig }}</td>
           <td style="color:#1d4ed8;font-weight:600">{{ m.op_hrs|floatformat:1 }}</td>
-          <td>{{ m.sb_hrs|floatformat:1 }}</td>
-          <td style="color:{% if m.bd_hrs > 0 %}#dc2626{% else %}inherit{% endif %}">{{ m.bd_hrs|floatformat:1 }}</td>
+          <td style="color:{% if m.sb_hrs > 0 %}#f59e0b{% else %}#94a3b8{% endif %}">{{ m.sb_hrs|floatformat:1 }}</td>
+          <td style="color:{% if m.bd_hrs > 0 %}#dc2626{% else %}#94a3b8{% endif %}">{{ m.bd_hrs|floatformat:1 }}</td>
           <td>{{ m.ilm_hrs|floatformat:1 }}</td>
-          <td style="color:{% if m.zr_hrs > 0 %}#dc2626{% else %}inherit{% endif %}">{{ m.zr_hrs|floatformat:1 }}</td>
+          <td style="color:{% if m.zr_hrs > 0 %}#dc2626{% else %}#94a3b8{% endif %}">{{ m.zr_hrs|floatformat:1 }}</td>
           <td>{{ m.entries }}</td>
+          <td style="font-weight:700;color:{% if m.efficiency >= 80 %}#16a34a{% else %}#dc2626{% endif %}">
+            {{m.efficiency}}%
+          </td>
         </tr>
+        {% endwith %}
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">No data found.</td></tr>
+        <tr><td colspan="9" class="text-center text-muted py-4">No data found.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const monthlyData = [
+  {% for m in monthly %}
+  { month: "{{ m.month|date:'M Y' }}", rig: "{{ m.rig }}",
+    op: {{ m.op_hrs|floatformat:1 }}, sb: {{ m.sb_hrs|floatformat:1 }},
+    bd: {{ m.bd_hrs|floatformat:1 }}, ilm: {{ m.ilm_hrs|floatformat:1 }},
+    zr: {{ m.zr_hrs|floatformat:1 }} },
+  {% endfor %}
+];
+
+// Bar chart — Op Hrs per rig per month
+const labels = [...new Set(monthlyData.map(d => d.month))].reverse();
+const rigs   = [...new Set(monthlyData.map(d => d.rig))];
+const colors = ['#3b82f6','#ef4444','#f59e0b','#22c55e','#8b5cf6','#14b8a6'];
+
+new Chart(document.getElementById('monthlyBarChart'), {
+  type: 'bar',
+  data: {
+    labels: labels,
+    datasets: rigs.map((rig, i) => ({
+      label: rig,
+      data: labels.map(lbl => {
+        const row = monthlyData.find(d => d.month === lbl && d.rig === rig);
+        return row ? row.op : 0;
+      }),
+      backgroundColor: colors[i % colors.length],
+    }))
+  },
+  options: { responsive: true, plugins: { legend: { position: 'top' } },
+    scales: { x: { stacked: false }, y: { beginAtZero: true, title: { display: true, text: 'Hours' } } } }
+});
+
+// Donut chart — total hours distribution
+const totals = monthlyData.reduce((acc, d) => {
+  acc.op += d.op; acc.sb += d.sb; acc.bd += d.bd; acc.ilm += d.ilm; acc.zr += d.zr;
+  return acc;
+}, { op: 0, sb: 0, bd: 0, ilm: 0, zr: 0 });
+
+new Chart(document.getElementById('monthlyDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Operating', 'Standby', 'Breakdown', 'ILM', 'Zero Rate'],
+    datasets: [{ data: [totals.op, totals.sb, totals.bd, totals.ilm, totals.zr],
+      backgroundColor: ['#3b82f6','#f59e0b','#ef4444','#8b5cf6','#1e293b'] }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'right' } } }
+});
+</script>
 {% endblock %}

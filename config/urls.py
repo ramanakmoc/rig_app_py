@@ -8,6 +8,7 @@ urlpatterns = [
     path('admin/',    admin.site.urls),
     path('',          include('core.urls')),
     path('ilm/',      include('ilm.urls')),
+    path('pob/',      include('pob.urls')),
     path('hsd/',      include('hsd.urls')),
     path('masters/',  include('masters.urls')),
     path('login/',    auth_views.LoginView.as_view(template_name='auth/login.html'),  name='login'),

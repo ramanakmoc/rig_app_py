@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128101; Add POB Entry</h3>
+  <div class="d-flex gap-2">
+    <a href="{% url 'pob_employees' %}" class="btn btn-outline-secondary btn-sm">&#128100; Employees</a>
+    <a href="{% url 'pob_masters' %}" class="btn btn-outline-secondary btn-sm">&#9881; Masters</a>
+    <a href="{% url 'pob_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; Back</a>
+  </div>
+</div>
+
+<form method="POST">
+  {% csrf_token %}
+
+  <!-- HEADER -->
+  <div class="card-box mb-3">
+    <div class="section-title">POB Header</div>
+    <div class="row g-3">
+      <div class="col-md-2 col-6">
+        <label class="form-label fw-semibold">Date *</label>
+        <input type="date" name="date" class="form-control" value="{{ default_date }}" max="{{ today }}" required>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label fw-semibold">Rig *</label>
+        <select name="rig" id="rigSelect" class="form-select" required>
+          {% for r in rigs %}<option value="{{ r }}" {% if r == prev_rig %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label fw-semibold">Location (AWP/MWP)</label>
+        <select name="location" class="form-select">
+          <option value="">-- Select Location --</option>
+          {% for loc in locations %}
+          <option value="{{ loc.location }}">{{ loc.category }} — {{ loc.location }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label">LTI Free Days</label>
+        <input type="number" name="lti_free_days" class="form-control" min="0" value="0">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Remarks</label>
+        <input type="text" name="remarks" class="form-control" placeholder="Overall remarks">
+      </div>
+    </div>
+  </div>
+
+  <!-- PERSONS TABLE -->
+  <div class="card-box mb-3">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="section-title" style="margin:0">Personnel on Board</div>
+      <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow()">+ Add Person</button>
+    </div>
+
+    {% if prev_persons %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#15803d">
+      ✓ Pre-filled {{ prev_persons|length }} persons from previous day — update meals and status as needed.
+    </div>
+    {% endif %}
+
+    <div class="table-responsive">
+      <table class="table-clean" style="font-size:11px" id="personsTable">
+        <thead>
+          <tr style="background:#0b3d6d;color:white">
+            <th style="width:30px">#</th>
+            <th style="min-width:130px">Category</th>
+            <th style="min-width:130px">Name *</th>
+            <th style="min-width:150px">Designation</th>
+            <th style="width:70px">Shift</th>
+            <th style="min-width:130px">Company</th>
+            <th style="min-width:130px">Accommodation</th>
+            <th style="min-width:110px">Room No</th>
+            <th style="width:120px">DOJ</th>
+            <th style="width:110px">Mobile</th>
+            <th style="width:25px">B</th>
+            <th style="width:25px">L</th>
+            <th style="width:25px">D</th>
+            <th style="width:55px">Arrived</th>
+            <th style="width:40px">Left</th>
+            <th style="min-width:100px">Remarks</th>
+            <th style="width:30px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          {% for p in prev_persons %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>
+              <select name="category" class="form-select form-select-sm">
+                {% for val, label in categories %}<option value="{{ val }}" {% if val == p.category %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <input type="text" name="name" class="form-control form-control-sm" value="{{ p.name }}"
+                     required oninput="searchEmployee(this)" onfocus="focusEmployee(this)" autocomplete="off">
+              <div class="emp-dropdown" style="display:none;position:absolute;background:white;border:1px solid #e2e8f0;border-radius:4px;z-index:999;min-width:220px;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+            </td>
+            <td>
+              <select name="desig_id" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for d in desigs %}<option value="{{ d.id }}" {% if p.designation and p.designation.pk == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="shift" class="form-select form-select-sm">
+                <option value="D" {% if p.shift == 'D' %}selected{% endif %}>Day</option>
+                <option value="N" {% if p.shift == 'N' %}selected{% endif %}>Night</option>
+                <option value="G" {% if p.shift == 'G' %}selected{% endif %}>General</option>
+              </select>
+            </td>
+            <td>
+              <select name="company_id" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for c in companies %}<option value="{{ c.id }}" {% if p.company and p.company.pk == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="accommodation_id" class="form-select form-select-sm accomm-sel"
+                      onchange="loadRowRooms(this)">
+                <option value="">-- Select --</option>
+                {% for a in accomms %}<option value="{{ a.id }}" {% if p.accommodation and p.accommodation.pk == a.id %}selected{% endif %}>{{ a.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="room_id" class="form-select form-select-sm room-sel">
+                <option value="">-- Room --</option>
+                {% if p.room_no %}<option value="{{ p.room_no.pk }}" selected>{{ p.room_no.room_no }}</option>{% endif %}
+              </select>
+            </td>
+            <td><input type="date" name="doj" class="form-control form-control-sm" value="{{ p.doj|date:'Y-m-d' }}"></td>
+            <td><input type="text" name="mobile_no" class="form-control form-control-sm" value="{{ p.mobile_no }}"></td>
+            <td><input type="checkbox" name="meal_b" value="{{ forloop.counter0 }}" {% if p.meal_b %}checked{% endif %}></td>
+            <td><input type="checkbox" name="meal_l" value="{{ forloop.counter0 }}" {% if p.meal_l %}checked{% endif %}></td>
+            <td><input type="checkbox" name="meal_d" value="{{ forloop.counter0 }}" {% if p.meal_d %}checked{% endif %}></td>
+            <td><input type="checkbox" name="arrived" value="{{ forloop.counter0 }}"></td>
+            <td><input type="checkbox" name="left_site" value="{{ forloop.counter0 }}"></td>
+            <td><input type="text" name="person_remarks" class="form-control form-control-sm" value="{{ p.remarks }}"></td>
+            <td><button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="this.closest('tr').remove()">&#10005;</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex gap-3">
+    <button type="submit" class="btn btn-success px-5">&#10003; Save POB Entry</button>
+    <a href="{% url 'pob_report' %}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+
+{% block extra_js %}
+<script>
+let rowCount = {{ prev_persons|length }};
+
+// Pass master data to JS
+const desigs    = [{% for d in desigs %}{"id":{{ d.id }},"name":"{{ d.name }}","cat":"{{ d.category }}"},{% endfor %}];
+const companies = [{% for c in companies %}{"id":{{ c.id }},"name":"{{ c.name }}"},{% endfor %}];
+const accomms   = [{% for a in accomms %}{"id":{{ a.id }},"name":"{{ a.name }}"},{% endfor %}];
+const allRooms  = [{% for r in rooms %}{"id":{{ r.id }},"room":"{{ r.room_no|escapejs }}","accomm_id":{{ r.accommodation__id }}},{% endfor %}];
+const categories = [{% for val, label in categories %}["{{ val }}","{{ label }}"],{% endfor %}];
+
+function makeDesigOpts(selVal) {
+  let html = '<option value="">-- Select --</option>';
+  let lastCat = '';
+  desigs.forEach(d => {
+    if (d.cat !== lastCat) { lastCat = d.cat; }
+    html += `<option value="${d.id}" ${d.id==selVal?'selected':''}>${d.name}</option>`;
+  });
+  return html;
+}
+function makeCompOpts(selVal) {
+  return '<option value="">-- Select --</option>' +
+    companies.map(c => `<option value="${c.id}" ${c.id==selVal?'selected':''}>${c.name}</option>`).join('');
+}
+function makeAccommOpts(selVal) {
+  return '<option value="">-- Select --</option>' +
+    accomms.map(a => `<option value="${a.id}" ${a.id==selVal?'selected':''}>${a.name}</option>`).join('');
+}
+function makeRoomOpts(accommId, selVal) {
+  const rooms = allRooms.filter(r => r.accomm_id == accommId);
+  return '<option value="">-- Room --</option>' +
+    rooms.map(r => `<option value="${r.id}" ${r.id==selVal?'selected':''}>${r.room}</option>`).join('');
+}
+function makeCatOpts(selVal) {
+  return categories.map(c => `<option value="${c[0]}" ${c[0]==selVal?'selected':''}>${c[1]}</option>`).join('');
+}
+
+function loadRowRooms(sel) {
+  const row = sel.closest('tr');
+  const roomSel = row.querySelector('.room-sel');
+  roomSel.innerHTML = makeRoomOpts(sel.value, '');
+}
+
+function addRow() {
+  const i = rowCount++;
+  const tbody = document.getElementById('tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${i+1}</td>
+    <td><select name="category" class="form-select form-select-sm">${makeCatOpts('KSD_CREW')}</select></td>
+    <td style="position:relative">
+      <input type="text" name="name" class="form-control form-control-sm" required
+             placeholder="Name" oninput="searchEmployee(this)" onfocus="focusEmployee(this)" autocomplete="off">
+      <div class="emp-dropdown" style="display:none;position:absolute;left:0;top:100%;background:white;border:1px solid #e2e8f0;border-radius:4px;z-index:9999;min-width:250px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-height:200px;overflow-y:auto"></div>
+    </td>
+    <td><select name="desig_id" class="form-select form-select-sm">${makeDesigOpts('')}</select></td>
+    <td><select name="shift" class="form-select form-select-sm"><option value="D">Day</option><option value="N">Night</option><option value="G" selected>G</option></select></td>
+    <td><select name="company_id" class="form-select form-select-sm">${makeCompOpts('')}</select></td>
+    <td><select name="accommodation_id" class="form-select form-select-sm accomm-sel" onchange="loadRowRooms(this)">${makeAccommOpts('')}</select></td>
+    <td><select name="room_id" class="form-select form-select-sm room-sel"><option value="">-- Room --</option></select></td>
+    <td><input type="date" name="doj" class="form-control form-control-sm"></td>
+    <td><input type="text" name="mobile_no" class="form-control form-control-sm"></td>
+    <td><input type="checkbox" name="meal_b" value="${i}" checked></td>
+    <td><input type="checkbox" name="meal_l" value="${i}" checked></td>
+    <td><input type="checkbox" name="meal_d" value="${i}" checked></td>
+    <td><input type="checkbox" name="arrived" value="${i}" checked></td>
+    <td><input type="checkbox" name="left_site" value="${i}"></td>
+    <td><input type="text" name="person_remarks" class="form-control form-control-sm"></td>
+    <td><button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="this.closest('tr').remove()">&#10005;</button></td>
+  `;
+  tbody.appendChild(tr);
+  tr.querySelector('[name=name]').focus();
+}
+
+// Employee auto-complete
+let searchTimer;
+function getRig() {
+  const sel = document.getElementById('rigSelect') || document.querySelector('[name=rig]');
+  return sel ? sel.value : '';
+}
+
+// Global floating dropdown
+let _floatTarget = null;
+const _floatDrop = document.createElement('div');
+_floatDrop.id = 'globalEmpDrop';
+_floatDrop.style.cssText = 'display:none;position:fixed;background:white;border:1px solid #bae6fd;border-radius:6px;z-index:99999;min-width:300px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:260px;overflow-y:auto';
+document.body.appendChild(_floatDrop);
+
+document.addEventListener('click', function(e) {
+  if (!_floatDrop.contains(e.target) && e.target !== _floatTarget) {
+    _floatDrop.style.display = 'none';
+  }
+});
+
+function showEmployeeDropdown(inp, employees) {
+  _floatTarget = inp;
+  if (!employees.length) { _floatDrop.style.display='none'; return; }
+  const rect = inp.getBoundingClientRect();
+  _floatDrop.style.top  = (rect.bottom + window.scrollY + 2) + 'px';
+  _floatDrop.style.left = (rect.left + window.scrollX) + 'px';
+  _floatDrop.style.width = Math.max(300, rect.width) + 'px';
+  _floatDrop.innerHTML = employees.map(e =>
+    `<div style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center"
+          onmouseover="this.style.background='#eff6ff'"
+          onmouseout="this.style.background=''"
+          onmousedown="event.preventDefault();fillEmployee(_floatTarget.closest('tr'),'${e.name.replace(/'/g,"\'")}',${e.desig_id||0},'${(e.desig||'').replace(/'/g,"\'")}',${e.comp_id||0},'${(e.company||'').replace(/'/g,"\'")}','${e.shift||'G'}','${e.mobile||''}','${e.category||'KSD_CREW'}');_floatDrop.style.display='none';">
+      <span><strong>${e.name}</strong> <small style="color:#64748b">${e.desig||''}</small></span>
+      <span style="color:#0369a1;font-size:11px">${e.company||''}</span>
+    </div>`
+  ).join('');
+  _floatDrop.style.display = 'block';
+}
+
+function searchEmployee(inp) {
+  const dropdown = inp.nextElementSibling;
+  clearTimeout(searchTimer);
+  const q   = inp.value.trim();
+  const rig = getRig();
+  searchTimer = setTimeout(() => {
+    const cat  = getCategoryForRow(inp);
+    const date = getDate();
+    fetch('/pob/api/employees/?q=' + encodeURIComponent(q) + '&rig=' + encodeURIComponent(rig) + '&category=' + encodeURIComponent(cat) + '&date=' + encodeURIComponent(date))
+      .then(r => r.json())
+      .then(data => showEmployeeDropdown(inp, data.employees));
+  }, 200);
+}
+
+function getCategoryForRow(inp) {
+  const row = inp.closest('tr');
+  if (!row) return '';
+  const catSel = row.querySelector('[name=category]');
+  return catSel ? catSel.value : '';
+}
+
+function getDate() {
+  const d = document.querySelector('[name=date]');
+  return d ? d.value : '';
+}
+
+function focusEmployee(inp) {
+  const rig  = getRig();
+  if (!rig) return;
+  const cat  = getCategoryForRow(inp);
+  const date = getDate();
+  fetch('/pob/api/employees/?q=&rig=' + encodeURIComponent(rig) + '&category=' + encodeURIComponent(cat) + '&date=' + encodeURIComponent(date))
+    .then(r => r.json())
+    .then(data => showEmployeeDropdown(inp, data.employees));
+}
+
+function fillEmployee(row, name, desigId, desigName, compId, compName, shift, mobile, cat) {
+  row.querySelector('[name=name]').value = name;
+  row.querySelector('[name=name]').nextElementSibling.style.display = 'none';
+  const dsel = row.querySelector('[name=desig_id]');
+  if (desigId) dsel.value = desigId;
+  const csel = row.querySelector('[name=company_id]');
+  if (compId) csel.value = compId;
+  if (shift) row.querySelector('[name=shift]').value = shift;
+  if (mobile) row.querySelector('[name=mobile_no]').value = mobile;
+  if (cat) row.querySelector('[name=category]').value = cat;
+}
+
+function addEmployeeRow(name, desigId, desig, compId, company, shift, mobile, category) {
+  // Add a new row and fill with employee data
+  addRow();
+  const rows = document.querySelectorAll('#personTable tbody tr');
+  const row  = rows[rows.length - 1];
+  if (!row) return;
+  row.querySelector('[name=name]').value = name;
+  const dsel = row.querySelector('[name=desig_id]');
+  if (dsel && desigId) dsel.value = desigId;
+  const csel = row.querySelector('[name=company_id]');
+  if (csel && compId) csel.value = compId;
+  const ssel = row.querySelector('[name=shift]');
+  if (ssel && shift) ssel.value = shift;
+  const catsel = row.querySelector('[name=category]');
+  if (catsel && category) catsel.value = category;
+  const mob = row.querySelector('[name=mobile_no]');
+  if (mob) mob.value = mobile || '';
+  // Highlight the chip as added
+  document.querySelectorAll('.emp-chip').forEach(c => {
+    if (c.textContent.trim().startsWith(name)) {
+      c.style.background = '#dcfce7';
+      c.style.color = '#15803d';
+      c.onclick = null;
+      c.style.cursor = 'default';
+    }
+  });
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', e => {
+  if (!e.target.matches('[name=name]')) {
+    document.querySelectorAll('.emp-dropdown').forEach(d => d.style.display='none');
+  }
+});
+
+// Initialize accommodations for pre-filled rows
+document.querySelectorAll('.accomm-sel').forEach(sel => {
+  if (sel.value) loadRowRooms(sel);
+});
+</script>
+{% endblock %}
+{% endblock %}

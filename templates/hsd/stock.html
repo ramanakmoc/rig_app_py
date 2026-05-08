@@ -3,11 +3,143 @@
 <div class="page-header">
   <h3>&#128230; HSD Daily Stock</h3>
 </div>
+
+<!-- FILTERS -->
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2 col-6">
+      <label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}
+        <option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">Month</label>
+      <input type="month" name="month" class="form-control form-control-sm"
+             value="{{ filters.month }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">From</label>
+      <input type="date" name="from" class="form-control form-control-sm"
+             value="{{ filters.from }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <label class="form-label">To</label>
+      <input type="date" name="to" class="form-control form-control-sm"
+             value="{{ filters.to }}">
+    </div>
+    <div class="col-md-2 col-6">
+      <button type="submit" class="btn btn-primary btn-sm w-100">Apply</button>
+    </div>
+    <div class="col-md-2 col-6">
+      <a href="{% url 'hsd_stock' %}" class="btn btn-outline-secondary btn-sm w-100">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- STAT CARDS -->
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="stat-card green">
+      <h6>Total Received</h6>
+      <h2>{{ stats.total_received|floatformat:1|default:"0" }}</h2>
+      <small>Litres</small>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card red">
+      <h6>Total Issued</h6>
+      <h2>{{ stats.total_issued|floatformat:1|default:"0" }}</h2>
+      <small>Litres</small>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card blue">
+      <h6>Avg Closing Stock</h6>
+      <h2>{{ stats.avg_closing|floatformat:1|default:"0" }}</h2>
+      <small>Litres/day</small>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card amber">
+      <h6>Days Tracked</h6>
+      <h2>{{ stock|length }}</h2>
+      <small>Entries</small>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS -->
+{% if stock %}
+<div class="row g-4 mb-4">
+  <!-- Closing Stock Trend -->
+  <div class="col-md-8">
+    <div class="card-box">
+      <div class="section-title">Closing Stock Trend</div>
+      <div style="position:relative;height:260px">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <!-- Rig-wise Pie Chart -->
+  <div class="col-md-4">
+    <div class="card-box">
+      <div class="section-title">Rig-wise Consumption</div>
+      <div style="position:relative;height:260px">
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rig Summary Bar -->
+{% if rig_summary %}
+<div class="card-box mb-4">
+  <div class="section-title">Rig-wise Summary</div>
+  <div class="table-responsive">
+    <table class="table-clean">
+      <thead>
+        <tr>
+          <th>Rig</th>
+          <th style="color:#16a34a">Total Received (L)</th>
+          <th style="color:#dc2626">Total Issued (L)</th>
+          <th>Net Balance (L)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rig_summary %}
+        <tr>
+          <td><strong>{{ r.rig }}</strong></td>
+          <td style="color:#16a34a;font-weight:600">{{ r.total_rcv|floatformat:1 }}</td>
+          <td style="color:#dc2626;font-weight:600">{{ r.total_iss|floatformat:1 }}</td>
+          <td style="font-weight:700;font-size:15px;color:{% if r.net_balance < 0 %}#dc2626{% else %}#1d4ed8{% endif %}">
+            {{ r.net_balance }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- STOCK TABLE -->
 <div class="card-box">
   <div class="section-title">Daily Stock Reconciliation</div>
   <div class="table-responsive">
     <table class="table-clean">
-      <thead><tr><th>Date</th><th>Rig</th><th>Opening (L)</th><th>Received (L)</th><th>Issued (L)</th><th>Closing (L)</th><th>Remarks</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Date</th><th>Rig</th>
+          <th>Opening (L)</th><th>Received (L)</th>
+          <th>Issued (L)</th><th>Closing (L)</th>
+          <th>Remarks</th><th>Actions</th>
+        </tr>
+      </thead>
       <tbody>
         {% for s in stock %}
         <tr>
@@ -16,14 +148,216 @@
           <td>{{ s.opening_stock|floatformat:1 }}</td>
           <td style="color:#16a34a;font-weight:600">{{ s.receipts|floatformat:1 }}</td>
           <td style="color:#dc2626;font-weight:600">{{ s.consumption|floatformat:1 }}</td>
-          <td style="color:#1d4ed8;font-weight:700;font-size:15px">{{ s.closing_stock|floatformat:1 }}</td>
+          <td style="color:{% if s.closing_stock < 0 %}#dc2626{% else %}#1d4ed8{% endif %};font-weight:700;font-size:15px">
+            {{ s.closing_stock|floatformat:1 }}
+          </td>
           <td style="font-size:12px;color:#64748b">{{ s.remarks|default:"—" }}</td>
+          <td style="white-space:nowrap">
+            {% if request.user.profile.role != 'viewer' %}
+            <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                    onclick="openEdit({{ s.pk }}, '{{ s.rig }}', '{{ s.date }}',
+                             {{ s.opening_stock }}, {{ s.receipts }},
+                             {{ s.consumption }}, '{{ s.remarks|default:"" }}')">
+              Edit
+            </button>
+            {% endif %}
+            {% if request.user.profile.role == 'admin' %}
+            <button type="button" class="btn btn-outline-danger btn-sm py-0"
+                    onclick="openDel({{ s.pk }}, '{{ s.rig }}', '{{ s.date }}')">
+              Del
+            </button>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">No stock data. Add receipts and issues first.</td></tr>
+        <tr><td colspan="8" class="text-center text-muted py-4">No stock data for this period.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+
+<!-- EDIT MODAL -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Stock — <span id="editTitle"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="editForm" action="">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div style="background:#f8fafc;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:12px">
+            <div style="display:flex;gap:20px;flex-wrap:wrap">
+              <div><span style="color:#64748b">Received:</span>
+                <strong id="editReceipts" style="color:#16a34a"></strong></div>
+              <div><span style="color:#64748b">Issued:</span>
+                <strong id="editConsumption" style="color:#dc2626"></strong></div>
+            </div>
+            <div style="margin-top:4px;color:#64748b;font-size:11px">
+              Closing = Opening + Received − Issued (auto-calculated)
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Opening Stock (L)</label>
+            <input type="number" name="opening_stock" id="editOpening"
+                   class="form-control" step="0.1" min="0" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Projected Closing</label>
+            <div id="editProjected"
+                 style="font-size:20px;font-weight:800;color:#1d4ed8;padding:6px 0"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Remarks</label>
+            <input type="text" name="remarks" id="editRemarks"
+                   class="form-control" placeholder="Optional note">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE MODAL -->
+<div class="modal fade" id="delModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Delete Stock Entry</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="delForm" action="">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>Delete stock for <strong id="delTitle"></strong>?</p>
+          <p class="text-danger small">This cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ── CHARTS ──────────────────────────────────────────────
+const dateLabels     = {{ date_labels|safe }};
+const trendDatasets  = {{ trend_datasets|safe }};
+const chartColors    = {{ chart_colors|safe }};
+
+// Closing Stock Trend Line Chart
+if (dateLabels.length > 0 && document.getElementById('trendChart')) {
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: dateLabels,
+      datasets: trendDatasets.map(function(d, i) {
+        return {
+          label: d.label,
+          data: d.data,
+          borderColor: d.color,
+          backgroundColor: d.color + '20',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+          borderWidth: 2,
+          spanGaps: true,
+        };
+      })
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+      },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxTicksLimit: 14, maxRotation: 45 },
+             grid: { color: 'rgba(0,0,0,0.04)' } },
+        y: { beginAtZero: false,
+             ticks: { font: { size: 11 } },
+             grid: { color: 'rgba(0,0,0,0.04)' } }
+      }
+    }
+  });
+}
+
+// Rig-wise Consumption Pie Chart
+const rigNames = [{% for r in rig_summary %}'{{ r.rig }}',{% endfor %}];
+const rigIssued = [{% for r in rig_summary %}{{ r.total_iss|floatformat:1 }},{% endfor %}];
+
+if (rigNames.length > 0 && document.getElementById('pieChart')) {
+  new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: rigNames,
+      datasets: [{
+        data: rigIssued,
+        backgroundColor: chartColors,
+        borderWidth: 2,
+        borderColor: '#fff',
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+              const pct = total > 0 ? (ctx.parsed/total*100).toFixed(1) : 0;
+              return ' ' + ctx.label + ': ' + ctx.parsed.toFixed(1) + 'L (' + pct + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── EDIT MODAL ───────────────────────────────────────────
+function openEdit(pk, rig, date, opening, receipts, consumption, remarks) {
+  document.getElementById('editTitle').textContent       = rig + ' / ' + date;
+  document.getElementById('editOpening').value           = opening;
+  document.getElementById('editRemarks').value           = remarks;
+  document.getElementById('editReceipts').textContent    = receipts.toFixed(1) + ' L';
+  document.getElementById('editConsumption').textContent = consumption.toFixed(1) + ' L';
+  document.getElementById('editForm').action = '/hsd/stock/' + pk + '/edit/';
+  updateProjected(opening, receipts, consumption);
+
+  document.getElementById('editOpening').oninput = function() {
+    updateProjected(parseFloat(this.value)||0, receipts, consumption);
+  };
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+function updateProjected(opening, receipts, consumption) {
+  const closing = parseFloat(opening) + parseFloat(receipts) - parseFloat(consumption);
+  const el = document.getElementById('editProjected');
+  el.textContent = closing.toFixed(1) + ' L';
+  el.style.color = closing < 0 ? '#dc2626' : closing < 100 ? '#d97706' : '#1d4ed8';
+}
+
+function openDel(pk, rig, date) {
+  document.getElementById('delTitle').textContent = rig + ' on ' + date;
+  document.getElementById('delForm').action = '/hsd/stock/' + pk + '/delete/';
+  new bootstrap.Modal(document.getElementById('delModal')).show();
+}
+</script>
+{% endblock %}
 {% endblock %}

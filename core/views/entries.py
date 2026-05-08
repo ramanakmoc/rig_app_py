@@ -11,12 +11,24 @@ def _get_rigs():
     rigs = list(Rig.objects.filter(rig_status='Active').values_list('rig_name', flat=True))
     return rigs if rigs else ['PPE-1', 'PPE-2', 'PPE-3', 'PPE-4', 'PPE-5']
 
+def _get_user_rigs(request):
+    """Return only rigs the current user can access."""
+    all_rigs = _get_rigs()
+    try:
+        return request.user.profile.filter_rigs(all_rigs)
+    except Exception:
+        return all_rigs
+
 
 @login_required
 @supervisor_required
 def add_entry(request):
-    rigs = _get_rigs()
-    today = datetime.date.today().isoformat()
+    rigs = _get_user_rigs(request)
+
+    # ? FIX: define today_obj first
+    today_obj = datetime.date.today()
+    today = today_obj.isoformat()
+    yesterday = (today_obj - datetime.timedelta(days=1)).isoformat()
 
     if request.method == 'POST':
         date    = request.POST.get('date', '').strip()
@@ -30,9 +42,20 @@ def add_entry(request):
         status  = request.POST.get('status', 'Running')
 
         errors = []
+
+        # Required
         if not date or not rig:
             errors.append('Date and rig are required.')
 
+        # Date validation
+        try:
+            date_obj = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+            if date_obj > today_obj:
+                errors.append('Future date not allowed.')
+        except ValueError:
+            errors.append('Invalid date format.')
+
+        # Hours validation
         try:
             total = float(op_hrs)+float(sb_hrs)+float(bd_hrs)+float(ilm_hrs)+float(zr_hrs)
             if total > 24.01:
@@ -42,6 +65,7 @@ def add_entry(request):
         except ValueError:
             errors.append('Invalid hour values.')
 
+        # Duplicate check
         if not errors and RigDailyLog.objects.filter(rig=rig, date=date).exists():
             errors.append(f'Entry already exists for {rig} on {date}. Use Edit instead.')
 
@@ -49,22 +73,35 @@ def add_entry(request):
             for e in errors:
                 messages.error(request, e)
             return render(request, 'core/add_entry.html', {
-                'rigs': rigs, 'today': today, 'page_title': 'Add Entry',
+                'rigs': rigs,
+                'today': today,
+                'default_date': yesterday,
+                'page_title': 'Add Entry',
                 'post': request.POST,
             })
 
         RigDailyLog.objects.create(
-            date=date, rig=rig,
-            operating_hours=op_hrs, standby_hours=sb_hrs,
-            breakdown_hours=bd_hrs, ilm_hours=ilm_hrs,
-            zero_rate_hours=zr_hrs, reason=reason,
-            status=status, created_by=request.user,
+            date=date,
+            rig=rig,
+            operating_hours=op_hrs,
+            standby_hours=sb_hrs,
+            breakdown_hours=bd_hrs,
+            ilm_hours=ilm_hrs,
+            zero_rate_hours=zr_hrs,
+            reason=reason,
+            status=status,
+            created_by=request.user,
         )
-        messages.success(request, f'Entry saved for <strong>{rig}</strong> on <strong>{date}</strong>.')
+
+        messages.success(request, f'Entry saved for {rig} on {date}.')
         return redirect('daily_report')
 
     return render(request, 'core/add_entry.html', {
-        'rigs': rigs, 'today': today, 'page_title': 'Add Entry',
+        'rigs': rigs,
+        'today': today,
+        'default_date': yesterday,  # ? yesterday default
+        'page_title': 'Add Entry',
+        'post': {},                # ? prevents template crash
     })
 
 
@@ -88,25 +125,30 @@ def edit_entry(request, pk):
             if total > 24.01:
                 messages.error(request, f'Total hours ({total:.2f}) cannot exceed 24.')
                 return render(request, 'core/edit_entry.html', {
-                    'entry': entry, 'rigs': rigs, 'page_title': 'Edit Entry'})
+                    'entry': entry, 'rigs': rigs, 'page_title': 'Edit Entry'
+                })
         except ValueError:
             messages.error(request, 'Invalid hour values.')
             return render(request, 'core/edit_entry.html', {
-                'entry': entry, 'rigs': rigs, 'page_title': 'Edit Entry'})
+                'entry': entry, 'rigs': rigs, 'page_title': 'Edit Entry'
+            })
 
         entry.operating_hours  = op_hrs
         entry.standby_hours    = sb_hrs
         entry.breakdown_hours  = bd_hrs
         entry.ilm_hours        = ilm_hrs
         entry.zero_rate_hours  = zr_hrs
-        entry.reason  = reason
-        entry.status  = status
+        entry.reason = reason
+        entry.status = status
         entry.save()
+
         messages.success(request, f'Entry updated for {entry.rig} on {entry.date}.')
         return redirect('daily_report')
 
     return render(request, 'core/edit_entry.html', {
-        'entry': entry, 'rigs': rigs, 'page_title': 'Edit Entry',
+        'entry': entry,
+        'rigs': rigs,
+        'page_title': 'Edit Entry',
     })
 
 

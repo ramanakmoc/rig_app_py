@@ -102,14 +102,21 @@ class Equipment(models.Model):
     Use EquipmentDeployment to track where it is at any time.
     """
     TYPE_CHOICES = [
-        ('Crane',     'Crane'),
-        ('Trailer',   'Trailer'),
-        ('Forklift',  'Forklift'),
-        ('Hydra',     'Hydra'),
-        ('Generator', 'Generator'),
-        ('Pump',      'Pump'),
-        ('Vehicle',   'Vehicle'),
-        ('Other',     'Other'),
+        ('RigCarrier',   'RigCarrier'),
+	('Generator',   'Generator'),
+	('MudPump',     'MudPump'),
+	('Crane',       'Crane'),
+        ('Trailer',     'Trailer'),
+        ('Forklift',    'Forklift'),
+        ('Hydra',       'Hydra'),
+        ('Vehicle',     'Vehicle'),
+        ('Compressor',  'Compressor'),
+        ('Ambulance',   'Ambulance'),
+        ('Pump',        'Pump'),
+        ('Tanker',      'Tanker'),
+        ('Truck',       'Truck'),
+        ('Bus',         'Bus'),
+        ('Other',       'Other'),
     ]
     STATUS_CHOICES = [
         ('Available',         'Available'),

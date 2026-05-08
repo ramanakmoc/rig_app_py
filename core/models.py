@@ -12,6 +12,9 @@ class UserProfile(models.Model):
     ]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='viewer')
+    assigned_rigs = models.CharField(max_length=500, blank=True, default='',
+                        help_text='Comma-separated rig names. Empty = access to ALL rigs')
+
 
     def __str__(self):
         return f'{self.user.username} ({self.role})'
@@ -21,6 +24,28 @@ class UserProfile(models.Model):
 
     def is_supervisor(self):
         return self.role in ('admin', 'supervisor')
+
+    def get_assigned_rigs(self):
+        if not self.assigned_rigs.strip():
+            return []
+        return [r.strip() for r in self.assigned_rigs.split(',') if r.strip()]
+
+    def can_access_rig(self, rig_name):
+        if self.role == 'admin':
+            return True
+        assigned = self.get_assigned_rigs()
+        if not assigned:
+            return True
+        return rig_name in assigned
+
+    def filter_rigs(self, rigs_list):
+        if self.role == 'admin':
+            return rigs_list
+        assigned = self.get_assigned_rigs()
+        if not assigned:
+            return rigs_list
+        return [r for r in rigs_list if r in assigned]
+
 
 
 @receiver(post_save, sender=User)

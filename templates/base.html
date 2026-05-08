@@ -39,8 +39,9 @@
   <a href="{% url 'weekly_report' %}"  class="{% if page_title == 'Weekly Report' %}active{% endif %}">&#128202;&nbsp; Weekly Report</a>
   <a href="{% url 'monthly_report' %}" class="{% if page_title == 'Monthly Report' %}active{% endif %}">&#128200;&nbsp; Monthly Report</a>
   <a href="{% url 'alerts' %}"         class="{% if page_title == 'Zero Rate Alerts' %}active{% endif %}">&#9888;&nbsp; Alerts</a>
+  <a href="{% url 'pob_report' %}"  class="{% if 'POB' in page_title %}active{% endif %}">&#128101;&nbsp; POB</a>
   <a href="{% url 'ilm_report' %}"     class="{% if page_title == 'ILM Report' %}active{% endif %}">&#128200;&nbsp; ILM Details</a>
-  <a href="{% url 'ilm_import' %}"     class="{% if page_title == 'Import ILM Excel' %}active{% endif %}">&#8679;&nbsp; Import ILM</a>
+
 
   <div class="sidebar-section">HSD Diesel</div>
   <a href="{% url 'hsd_dashboard' %}"  class="{% if page_title == 'HSD Dashboard' %}active{% endif %}">&#9968;&nbsp; HSD Overview</a>
@@ -48,6 +49,7 @@
   <a href="{% url 'hsd_add_receipt' %}" class="{% if page_title == 'Add HSD Receipt' %}active{% endif %}">&#10010;&nbsp; Add Receipt</a>
   <a href="{% url 'hsd_issues' %}"     class="{% if page_title == 'HSD Issues' %}active{% endif %}">&#9661;&nbsp; Issues</a>
   <a href="{% url 'hsd_add_issue' %}"  class="{% if page_title == 'Add HSD Issue' %}active{% endif %}">&#10010;&nbsp; Add Issue</a>
+  <a href="{% url 'hsd_bulk_issue' %}" class="{% if page_title == 'Bulk HSD Issue Entry' %}active{% endif %}" style="color:#f59e0b">&#9783;&nbsp; Bulk Entry</a>
   <a href="{% url 'hsd_stock' %}"      class="{% if page_title == 'HSD Daily Stock' %}active{% endif %}">&#128230;&nbsp; Stock</a>
 
   {% if request.user.profile.role == 'admin' %}

@@ -5,58 +5,143 @@
   <a href="{% url 'hsd_issues' %}" class="btn btn-outline-secondary btn-sm">&#8592; Issues</a>
 </div>
 
-<div class="card-box" style="max-width:760px">
+<div class="card-box" style="max-width:800px">
   <div class="section-title">Diesel Issue / Consumption Details</div>
   <form method="POST">
     {% csrf_token %}
     <div class="row g-3">
+
       <div class="col-md-4 col-6">
         <label class="form-label">Date <span class="text-danger">*</span></label>
-        <input type="date" name="date" class="form-control" value="{{ today }}" max="{{ today }}" required>
+        <input type="date" name="date" class="form-control" value="{{ default_date }}" max="{{ today }}" required>
       </div>
+
       <div class="col-md-4 col-6">
         <label class="form-label">Issuing Rig/Location <span class="text-danger">*</span></label>
-        <select name="rig" class="form-select" required>
+        <select name="rig" class="form-select" id="rigSelect" required onchange="onRigChange()"{% if rigs|length == 1 %} style="pointer-events:none;background:#f0fdf4;border-color:#16a34a;font-weight:700"{% endif %}>
           <option value="">— Select —</option>
-          {% for r in rigs %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+          {% for r in rigs %}<option value="{{ r }}"{% if rigs|length == 1 %} selected{% endif %}>{{ r }}</option>{% endfor %}
         </select>
       </div>
+
       <div class="col-md-4 col-6">
         <label class="form-label">Purpose <span class="text-danger">*</span></label>
-        <select name="purpose" class="form-select" id="purposeSelect" onchange="toggleEquipment()">
+        <select name="purpose" class="form-select" id="purposeSelect" onchange="onFilterChange()">
           {% for code, label in purposes %}
           <option value="{{ code }}">{{ label }}</option>
           {% endfor %}
         </select>
       </div>
+
       <div class="col-md-6">
         <label class="form-label">Issued To <span class="text-danger">*</span></label>
-        <input type="text" name="issued_to" class="form-control" placeholder="Rig name, equipment no, vehicle no" required>
+        <input type="text" name="issued_to" id="issuedTo" class="form-control"
+               placeholder="Rig name, equipment no, vehicle no" required>
       </div>
-      <div class="col-md-6" id="equipmentRow">
-        <label class="form-label">Link to Fleet Equipment (optional)</label>
-        <select name="equipment" class="form-select">
+
+      <div class="col-md-6">
+        <label class="form-label">
+          Link to Fleet Equipment
+          <span id="eqTypeHint" style="font-size:11px;color:#64748b;font-weight:400"></span>
+        </label>
+        <select name="equipment" class="form-select" id="eqSelect" onchange="onEquipmentChange()">
           <option value="">— Select equipment —</option>
           {% for eq in equipment %}
-          <option value="{{ eq.id }}">{{ eq.equipment_no }} — {{ eq.equipment_type }}
-            {% if eq.registration_no %}({{ eq.registration_no }}){% endif %}
+          <option value="{{ eq.id }}"
+                  data-type="{{ eq.equipment_type }}"
+                  data-rig="{{ eq.rig_tag }}"
+                  data-reg="{{ eq.registration_no|default:'' }}"
+                  data-no="{{ eq.equipment_no }}"
+                  data-vendor="{% if eq.vendor %}{{ eq.vendor.vendor_code }}{% endif %}">
+            {{ eq.equipment_no }}
+            {% if eq.registration_no %} ({{ eq.registration_no }}){% endif %}
+            — {{ eq.equipment_type }}
+            {% if eq.vendor %} | {{ eq.vendor.vendor_code }}{% endif %}
           </option>
           {% endfor %}
         </select>
-        <div class="form-text">Link to fleet equipment for usage tracking</div>
+        <div class="form-text" id="eqHelpText">Select rig first to filter equipment</div>
+
+<!-- Stock Balance Box -->
+<div id="stockBalanceBox" style="display:none;margin-top:12px">
+  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:11px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">
+          Current Stock Balance
+        </div>
+        <div id="balanceDisplay" style="font-size:24px;font-weight:800;color:#15803d">— L</div>
+        <div id="balanceDate" style="font-size:10px;color:#64748b;margin-top:2px"></div>
       </div>
-      <div class="col-md-4 col-6">
+      <div style="text-align:right">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Correct opening stock:</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="openingCorrection" name="opening_correction"
+                 step="0.1" min="0" placeholder="Opening L"
+                 style="width:110px;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+          <button type="button" onclick="saveOpeningStock()"
+                  style="background:#16a34a;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">
+            Update
+          </button>
+        </div>
+        <div id="correctionMsg" style="font-size:10px;margin-top:3px"></div>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:#64748b;display:flex;gap:16px">
+      <span>📥 Received: <strong id="balanceReceipts">—</strong></span>
+      <span>📤 Issued: <strong id="balanceConsumption">—</strong></span>
+    </div>
+  </div>
+</div>
+      </div>
+
+      <!-- Meter Reading Section -->
+      <div class="col-12">
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px">
+          <div class="row g-3">
+            <div class="col-12">
+              <small style="color:#16a34a;font-weight:600">&#9881; Meter / Hour Reading</small>
+            </div>
+            <div class="col-md-3 col-6">
+              <label class="form-label">Starting Reading</label>
+              <input type="number" step="0.1" name="meter_start" id="meterStart"
+                     class="form-control" placeholder="Auto-filled from last entry"
+                     style="background:#eff6ff" oninput="calcMeterHours()">
+              <small class="text-muted" id="lastReadingHint"></small>
+            </div>
+            <div class="col-md-3 col-6">
+              <label class="form-label">Ending Reading</label>
+              <input type="number" step="0.1" name="meter_end" id="meterEnd"
+                     class="form-control" placeholder="Current reading"
+                     oninput="calcMeterHours()">
+            </div>
+            <div class="col-md-3 col-6">
+              <label class="form-label">Hours Run (auto)</label>
+              <input type="number" step="0.1" name="meter_hours" id="meterHours"
+                     class="form-control" readonly
+                     style="background:#f0fdf4;font-weight:700"
+                     placeholder="Auto-calculated">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3 col-6">
         <label class="form-label">Quantity (Litres) <span class="text-danger">*</span></label>
-        <input type="number" step="0.01" name="quantity_ltrs" class="form-control" min="0.1" required placeholder="0.00">
+        <input type="number" step="0.01" name="quantity_ltrs" class="form-control"
+               min="0" required placeholder="0.00">
       </div>
-      <div class="col-md-4 col-6">
+
+      <div class="col-md-3 col-6">
         <label class="form-label">Issued By</label>
         <input type="text" name="issued_by" class="form-control" placeholder="Name">
       </div>
-      <div class="col-md-4">
+
+      <div class="col-md-6">
         <label class="form-label">Remarks</label>
         <input type="text" name="remarks" class="form-control">
       </div>
+
     </div>
     <div class="d-flex gap-2 mt-4">
       <button type="submit" class="btn btn-danger px-4">&#10003; Save Issue</button>
@@ -65,15 +150,234 @@
   </form>
 </div>
 
+{% endblock %}
 {% block extra_js %}
 <script>
-function toggleEquipment() {
-  const purpose  = document.getElementById('purposeSelect').value;
-  const eqRow    = document.getElementById('equipmentRow');
-  const showEq   = ['Equipment','Vehicle','Generator'].includes(purpose);
-  eqRow.style.display = showEq ? '' : 'none';
+// Purpose → equipment types mapping
+const PURPOSE_TYPES = {
+  'Drilling':  ['RigCarrier','MudPump','Pump','Other'],
+  'Generator': ['Generator'],
+  'Equipment': ['Crane','Forklift','Hydra','Compressor'],
+  'Vehicle':   ['Vehicle','Ambulance'],
+  'Camp':      ['Vehicle','Ambulance','Other','Pump'],
+  'Other':     [],  // show all
+};
+
+const PLACEHOLDER_MAP = {
+  'Drilling':  'Rig name / Engine no',
+  'Generator': 'Generator no / name',
+  'Equipment': 'Equipment no (e.g. CRANE-01)',
+  'Vehicle':   'Vehicle registration no',
+  'Camp':      'Camp name / location',
+  'Other':     'Description',
+};
+
+// Track already-entered equipment for current rig+date
+let enteredEquipmentIds = [];
+let enteredEquipmentNames = [];
+
+function onDateOrRigChange() {
+  const rig  = document.getElementById('rigSelect').value;
+  const date = document.querySelector('[name=date]').value;
+  console.log('onDateOrRigChange called: rig=' + rig + ' date=' + date);
+  if (rig && date) {
+    fetch('/hsd/api/entered-equipment/?rig=' + encodeURIComponent(rig) + '&date=' + encodeURIComponent(date))
+      .then(r => r.json())
+      .then(data => {
+        enteredEquipmentIds   = data.entered_ids   || [];
+        enteredEquipmentNames = data.entered_names || [];
+        console.log('Date sent to API:', date);
+        console.log('Rig sent to API:', rig);
+        console.log('Entered IDs:', enteredEquipmentIds);
+        console.log('Entered Names:', enteredEquipmentNames);
+        onFilterChange();
+      }).catch(() => { onFilterChange(); });
+  } else {
+    enteredEquipmentIds   = [];
+    enteredEquipmentNames = [];
+    onFilterChange();
+  }
 }
-toggleEquipment();
+
+function onRigChange() {
+  // Fetch entered equipment for this rig+date
+  onDateOrRigChange();
+
+  // Fetch stock balance
+  const rig  = document.getElementById('rigSelect').value;
+  const date = document.getElementById('dateInput') ?
+               document.getElementById('dateInput').value :
+               document.querySelector('input[name="date"]').value;
+  const box  = document.getElementById('stockBalanceBox');
+
+  if (rig) {
+    fetch('/hsd/api/stock-balance/?rig=' + encodeURIComponent(rig) + '&date=' + (date || ''))
+      .then(r => r.json())
+      .then(data => {
+        box.style.display = 'block';
+        if (data.balance !== null) {
+          document.getElementById('balanceDisplay').textContent = data.balance.toFixed(1) + ' L';
+          document.getElementById('balanceDisplay').style.color =
+            data.balance < 0 ? '#dc2626' : data.balance < 100 ? '#d97706' : '#15803d';
+          document.getElementById('balanceDate').textContent =
+            'As of ' + data.date;
+          document.getElementById('balanceReceipts').textContent =
+            (data.receipts || 0).toFixed(1) + ' L';
+          document.getElementById('balanceConsumption').textContent =
+            (data.consumption || 0).toFixed(1) + ' L';
+          document.getElementById('openingCorrection').placeholder =
+            'Current: ' + (data.opening || 0).toFixed(1) + ' L';
+        } else {
+          document.getElementById('balanceDisplay').textContent = 'No stock data';
+          document.getElementById('balanceDate').textContent = 'No entries found for this rig';
+        }
+      });
+  } else {
+    box.style.display = 'none';
+  }
+ onDateOrRigChange(); }
+
+function onFilterChange() {
+  const rig     = document.getElementById('rigSelect').value;
+  const purpose = document.getElementById('purposeSelect').value;
+  const types   = PURPOSE_TYPES[purpose] || [];
+  const eqSelect = document.getElementById('eqSelect');
+  const hint     = document.getElementById('eqTypeHint');
+  const issuedTo = document.getElementById('issuedTo');
+
+  if (PLACEHOLDER_MAP[purpose]) issuedTo.placeholder = PLACEHOLDER_MAP[purpose];
+
+  const allOptions = Array.from(eqSelect.querySelectorAll('option[data-type]'));
+  let visibleCount = 0;
+
+  allOptions.forEach(function(opt) {
+    const eqType = opt.getAttribute('data-type');
+    const eqRig  = opt.getAttribute('data-rig');
+
+    // Rig filter:
+    // - If no rig selected: show all
+    // - If rig selected: show ONLY equipment deployed to that rig
+    //   PLUS available equipment (ALL) that matches purpose
+    let rigMatch = true;
+    if (rig) {
+      // Strict: show deployed-to-this-rig equipment
+      // Also show available (ALL) equipment for shared purposes
+      rigMatch = (eqRig === rig);
+    }
+
+    // Purpose filter: show all if types empty, else match type
+    const typeMatch = types.length === 0 || types.includes(eqType);
+
+    // Hide already entered equipment for this date+rig
+    const eqNo = (opt.getAttribute('data-no') || '').trim();
+    const eqNoBase = eqNo.split(' ')[0]; // handle any suffix
+    const alreadyEntered = enteredEquipmentIds.includes(parseInt(opt.value)) ||
+                           enteredEquipmentNames.some(n => n === eqNo || n === eqNoBase || eqNo.startsWith(n));
+    const show = rigMatch && typeMatch && !alreadyEntered;
+    if (alreadyEntered) {
+      opt.style.display = 'none';
+      opt.style.color = '#94a3b8';
+    } else {
+      opt.style.display = show ? '' : 'none';
+    }
+    if (!show && opt.selected) { opt.selected = false; eqSelect.value = ''; }
+    if (show) visibleCount++;
+  });
+
+  hint.textContent = visibleCount > 0 ? '(' + visibleCount + ' available)' : '(no equipment for this selection)';
+  document.getElementById('eqHelpText').textContent = visibleCount + ' equipment available';
+}
+
+function onEquipmentChange() {
+  const eqSelect = document.getElementById('eqSelect');
+  const selectedOpt = eqSelect.options[eqSelect.selectedIndex];
+  if (selectedOpt && selectedOpt.value) {
+    const no  = selectedOpt.getAttribute('data-no') || '';
+    const reg = selectedOpt.getAttribute('data-reg') || '';
+    document.getElementById('issuedTo').value = no + (reg ? ' (' + reg + ')' : '');
+    fetchLastMeter(selectedOpt.value, no);
+  }
+}
+
+function fetchLastMeter(eqId, eqNo) {
+  fetch('/hsd/api/last-meter/?equipment_id=' + eqId)
+    .then(r => r.json())
+    .then(data => {
+      const hint = document.getElementById('lastReadingHint');
+      const startInput = document.getElementById('meterStart');
+      if (data.meter_end !== null) {
+        startInput.value = data.meter_end;
+        hint.textContent = 'Last reading: ' + data.meter_end;
+        hint.style.color = '#16a34a';
+      } else {
+        startInput.value = '';
+        hint.textContent = 'No previous reading for ' + eqNo;
+        hint.style.color = '#94a3b8';
+      }
+      calcMeterHours();
+    }).catch(() => {});
+}
+
+function calcMeterHours() {
+  const start = parseFloat(document.getElementById('meterStart').value);
+  const end   = parseFloat(document.getElementById('meterEnd').value);
+  if (!isNaN(start) && !isNaN(end) && end >= start) {
+    document.getElementById('meterHours').value = (end - start).toFixed(1);
+  } else {
+    document.getElementById('meterHours').value = '';
+  }
+}
+
+// Initialize — fetch entered equipment and stock balance on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to ensure date field is populated
+    setTimeout(function() {
+        onDateOrRigChange();
+        onRigChange();
+    }, 100);
+});
+
+// Listen to date changes too
+document.querySelector('[name=date]').addEventListener('change', function() {
+  onDateOrRigChange();
+  onRigChange();  // refresh stock balance when date changes
+});
+
+function saveOpeningStock() {
+  const rig = document.getElementById('rigSelect').value;
+  const date = document.querySelector('input[name="date"]').value;
+  const val  = document.getElementById('openingCorrection').value;
+  const msg  = document.getElementById('correctionMsg');
+
+  if (!rig || !date || !val) {
+    msg.textContent = 'Please enter rig, date and value';
+    msg.style.color = '#dc2626';
+    return;
+  }
+
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  fetch('/hsd/api/update-opening/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': csrfToken
+    },
+    body: 'rig=' + encodeURIComponent(rig) +
+          '&date=' + encodeURIComponent(date) +
+          '&opening=' + encodeURIComponent(val)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      msg.textContent = '✓ Updated to ' + data.new_balance.toFixed(1) + ' L';
+      msg.style.color = '#16a34a';
+      // Refresh balance display
+      onRigChange();
+    } else {
+      msg.textContent = 'Error: ' + (data.error || 'Failed');
+      msg.style.color = '#dc2626';
+    }
+  });
+}
 </script>
-{% endblock %}
 {% endblock %}

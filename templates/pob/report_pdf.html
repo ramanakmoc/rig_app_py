@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4 landscape; margin: 15mm; }
+  body { font-family: Arial, sans-serif; font-size: 10px; color: #1e293b; }
+  h2 { color: #0b3d6d; text-align: center; margin: 0; font-size: 14px; }
+  h3 { color: #0b3d6d; font-size: 11px; margin: 14px 0 5px; border-left: 4px solid #0b3d6d; padding-left: 8px; }
+  .header { text-align: center; border-bottom: 2px solid #0b3d6d; padding-bottom: 8px; margin-bottom: 12px; }
+  .sub { color: #475569; font-size: 10px; margin-top: 3px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9.5px; }
+  th { background: #0b3d6d; color: white; padding: 5px 6px; text-align: center; white-space: nowrap; }
+  td { padding: 3px 6px; border: 1px solid #cbd5e1; vertical-align: middle; white-space: nowrap; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .total-row td { background: #f59e0b !important; color: white; font-weight: bold; font-size: 11px; text-align: center; }
+  .night-row td { background: #16a34a !important; color: white; font-weight: bold; font-size: 11px; text-align: center; }
+  .group-hdr td { background: #1e5a9a !important; color: white; font-weight: bold; font-size: 10px; letter-spacing: 0.5px; }
+  .section { page-break-inside: avoid; margin-bottom: 16px; }
+  .badge-d { background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:3px;font-weight:bold;font-size:9px }
+  .badge-n { background:#ede9fe;color:#7c3aed;padding:1px 6px;border-radius:3px;font-weight:bold;font-size:9px }
+  .badge-g { background:#f1f5f9;color:#475569;padding:1px 6px;border-radius:3px;font-weight:bold;font-size:9px }
+  .count { font-weight: bold; color: #1d4ed8; text-align: center; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h2>{{ company_name }}</h2>
+  <div style="font-size:13px;font-weight:bold;color:#0b3d6d;margin-top:4px">
+    POB DAILY REPORT &mdash; RIG {{ log.rig }} &nbsp;|&nbsp; DATE: {{ log.date|date:"d M Y" }}
+  </div>
+  <div class="sub">
+    Location: {{ log.location|default:"&mdash;" }} &nbsp;&bull;&nbsp;
+    LTI Free Days: {{ log.lti_free_days }} &nbsp;&bull;&nbsp;
+    Total POB: <strong>{{ grand_total }}</strong> &nbsp;&bull;&nbsp;
+    Night Live: <strong>{{ night_on_site }}</strong>
+  </div>
+</div>
+
+<div style="display:flex;gap:20px">
+
+  <!-- REPORT 1: SHIFT SUMMARY -->
+  <div style="width:200px;flex-shrink:0">
+    <h3>REPORT 1 &mdash; SHIFT SUMMARY</h3>
+    <table style="width:100%">
+      <thead><tr><th>SHIFT</th><th>COUNT</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge-d">DAY (D)</span></td><td class="count">{{ shift_day }}</td></tr>
+        <tr><td><span class="badge-n">NIGHT (N)</span></td><td class="count">{{ shift_night }}</td></tr>
+        <tr><td><span class="badge-g">GENERAL (G)</span></td><td class="count">{{ shift_general }}</td></tr>
+        <tr class="total-row"><td>TOTAL</td><td>{{ grand_total }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- REPORT 2: QUICK VIEW -->
+  <div style="flex:1">
+    <h3>REPORT 2 &mdash; POB QUICK VIEW @ RIG {{ log.rig }}</h3>
+    <table>
+      <thead><tr><th style="text-align:left;width:75%">CATEGORY / GROUP</th><th>COUNT</th></tr></thead>
+      <tbody>
+        {% for grp, cnt in groups %}
+        <tr>
+          <td>{{ grp }}</td>
+          <td class="count">{% if cnt > 0 %}<strong>{{ cnt }}</strong>{% else %}&mdash;{% endif %}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row"><td>GRAND TOTAL POB</td><td>{{ grand_total }}</td></tr>
+        <tr class="night-row"><td>TOTAL NIGHT POB LIVE (on site)</td><td>{{ night_on_site }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- REPORT 3: PERSON LIST GROUPED BY SHIFT -->
+<div class="page-break">
+  <h3>REPORT 3 &mdash; FULL PERSON LIST GROUPED BY SHIFT &mdash; TOTAL: {{ grand_total }}</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th style="text-align:left">Name</th><th style="text-align:left">Designation</th>
+        <th>Sh</th><th style="text-align:left">Company</th>
+        <th style="text-align:left">Accommodation</th><th>Room</th>
+        <th>DOJ</th><th>Days</th><th>B</th><th>L</th><th>D</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- DAY GROUP -->
+      <tr class="group-hdr">
+        <td colspan="12">&#9728; DAY SHIFT &mdash; {{ shift_day }} persons</td>
+      </tr>
+      {% for p in persons %}{% if p.shift == 'D' %}
+      <tr>
+        <td style="text-align:center">{{ forloop.counter }}</td>
+        <td><strong>{{ p.name }}</strong></td>
+        <td>{{ p.get_designation|default:"&mdash;" }}</td>
+        <td style="text-align:center"><span class="badge-d">D</span></td>
+        <td>{{ p.get_company|default:"&mdash;" }}</td>
+        <td>{{ p.get_accommodation|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.get_room_no|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.doj|date:"d/m/y"|default:"&mdash;" }}</td>
+        <td style="text-align:center;font-weight:bold">{{ p.days_on_site }}</td>
+        <td style="text-align:center">{% if p.meal_b %}&#10003;{% endif %}</td>
+        <td style="text-align:center">{% if p.meal_l %}&#10003;{% endif %}</td>
+        <td style="text-align:center">{% if p.meal_d %}&#10003;{% endif %}</td>
+      </tr>
+      {% endif %}{% endfor %}
+
+      <!-- NIGHT GROUP -->
+      <tr class="group-hdr">
+        <td colspan="12">&#9790; NIGHT SHIFT &mdash; {{ shift_night }} persons</td>
+      </tr>
+      {% for p in persons %}{% if p.shift == 'N' %}
+      <tr>
+        <td style="text-align:center">{{ forloop.counter }}</td>
+        <td><strong>{{ p.name }}</strong></td>
+        <td>{{ p.get_designation|default:"&mdash;" }}</td>
+        <td style="text-align:center"><span class="badge-n">N</span></td>
+        <td>{{ p.get_company|default:"&mdash;" }}</td>
+        <td>{{ p.get_accommodation|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.get_room_no|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.doj|date:"d/m/y"|default:"&mdash;" }}</td>
+        <td style="text-align:center;font-weight:bold">{{ p.days_on_site }}</td>
+        <td style="text-align:center">{% if p.meal_b %}&#10003;{% endif %}</td>
+        <td style="text-align:center">{% if p.meal_l %}&#10003;{% endif %}</td>
+        <td style="text-align:center">{% if p.meal_d %}&#10003;{% endif %}</td>
+      </tr>
+      {% endif %}{% endfor %}
+
+      <!-- GENERAL GROUP -->
+      <tr class="group-hdr">
+        <td colspan="12">&#9651; GENERAL SHIFT &mdash; {{ shift_general }} persons</td>
+      </tr>
+      {% for p in persons %}{% if p.shift == 'G' %}
+      <tr>
+        <td style="text-align:center">{{ forloop.counter }}</td>
+        <td><strong>{{ p.name }}</strong></td>
+        <td>{{ p.get_designation|default:"&mdash;" }}</td>
+        <td style="text-align:center"><span class="badge-g">G</span></td>
+        <td>{{ p.get_company|default:"&mdash;" }}</td>
+        <td>{{ p.get_accommodation|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.get_room_no|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.doj|date:"d/m/y"|default:"&mdash;" }}</td>
+        <td style="text-align:center;font-weight:bold">{{ p.days_on_site }}</td>
+        <td style="text-align:center">{% if p.meal_b %}&#10003;{% endif %}</td>
+        <td style="text-align:center">{% if p.meal_l %}&#10003;{% endif %}</td>
+        <td style="text-align:center">{% if p.meal_d %}&#10003;{% endif %}</td>
+      </tr>
+      {% endif %}{% endfor %}
+
+      <tr class="total-row">
+        <td colspan="8" style="text-align:right">GRAND TOTAL</td>
+        <td colspan="4">{{ grand_total }} PERSONS</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- NIGHT POB LIVE -->
+<div class="section">
+  <h3>REPORT 4 &mdash; NIGHT POB LIVE ON SITE ({{ night_on_site }} persons)</h3>
+  <table>
+    <thead>
+      <tr><th>#</th><th style="text-align:left">Name</th><th style="text-align:left">Designation</th>
+          <th style="text-align:left">Company</th><th style="text-align:left">Accommodation</th>
+          <th>Room</th><th>DOJ</th><th>Days</th><th>Mobile</th></tr>
+    </thead>
+    <tbody>
+      {% for p in persons %}{% if p.shift == 'N' and not p.left_site %}
+      <tr>
+        <td style="text-align:center">{{ forloop.counter }}</td>
+        <td><strong>{{ p.name }}</strong></td>
+        <td>{{ p.get_designation|default:"&mdash;" }}</td>
+        <td>{{ p.get_company|default:"&mdash;" }}</td>
+        <td>{{ p.get_accommodation|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.get_room_no|default:"&mdash;" }}</td>
+        <td style="text-align:center">{{ p.doj|date:"d/m/y"|default:"&mdash;" }}</td>
+        <td style="text-align:center;font-weight:bold">{{ p.days_on_site }}</td>
+        <td>{{ p.mobile_no|default:"&mdash;" }}</td>
+      </tr>
+      {% endif %}{% endfor %}
+      <tr class="night-row">
+        <td colspan="7" style="text-align:right">TOTAL NIGHT POB LIVE</td>
+        <td colspan="2">{{ night_on_site }} PERSONS</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div style="text-align:center;color:#94a3b8;font-size:8px;border-top:1px solid #e2e8f0;margin-top:10px;padding-top:5px">
+  KRISS Drilling Rig App &nbsp;|&nbsp; POB Report &nbsp;|&nbsp; {{ log.rig }} &mdash; {{ log.date|date:"d M Y" }} &nbsp;|&nbsp; Generated automatically
+</div>
+</body>
+</html>

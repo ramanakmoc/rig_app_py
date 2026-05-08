@@ -17,6 +17,29 @@ def _get_rigs():
     rigs = list(Rig.objects.values_list('rig_name', flat=True).order_by('rig_name'))
     return rigs if rigs else ['PPE-1', 'PPE-2', 'PPE-3', 'PPE-4', 'PPE-5']
 
+def _get_user_rigs(request):
+    all_rigs = _get_rigs()
+
+    try:
+        if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'filter_rigs'):
+            return request.user.profile.filter_rigs(all_rigs)
+    except Exception:
+        pass
+
+    return all_rigs
+def _apply_user_rig_filter(qs, request):
+    """Restrict queryset to user assigned rigs."""
+    try:
+        profile = request.user.profile
+        if profile.role == 'admin':
+            return qs
+        assigned = profile.get_assigned_rigs()
+        if assigned:
+            return qs.filter(rig__in=assigned)
+    except Exception:
+        pass
+    return qs
+
 
 def _build_filter(request):
     p = request.POST if request.method == 'POST' else request.GET
@@ -45,8 +68,14 @@ def _build_filter(request):
 @login_required
 def ilm_report(request):
     qs, filters = _build_filter(request)
+    qs = _apply_user_rig_filter(qs, request)
 
     # Aggregates run on the filtered queryset — fast, single SQL query each
+    # Count unique moves (by move_group) vs raw entries
+    unique_moves = qs.exclude(move_group='').values('move_group').distinct().count()
+    raw_entries  = qs.filter(move_group='').count()
+    total_moves  = unique_moves + raw_entries  # ungrouped count as individual
+
     stats = qs.aggregate(
         total_entries  = Count('id'),
         actual_moves   = Count('id', filter=Q(during_ilm_hrs__gt=0)),
@@ -65,6 +94,19 @@ def ilm_report(request):
         trailers  = Sum('trailer_reported'),
         t_loss    = Sum('trailer_loss'),
     ).order_by('rig')
+
+
+    # Chart data
+    import json
+    status_breakdown = qs.values('move_status').annotate(
+        count=Count('id'),
+        hrs=Sum('during_ilm_hrs')
+    ).order_by('move_status')
+
+    status_labels = json.dumps([s['move_status'] or 'Unknown' for s in status_breakdown])
+    status_counts  = json.dumps([s['count'] for s in status_breakdown])
+    rig_labels     = json.dumps([r['rig'] for r in rig_summary])
+    rig_hrs        = json.dumps([float(r['total_hrs'] or 0) for r in rig_summary])
 
     # ── PAGINATED entries — only 50 rows loaded per page ──────────────────
     entries_qs = qs.prefetch_related(
@@ -86,11 +128,15 @@ def ilm_report(request):
         'entries':          entries,          # now a Page object, not full queryset
         'stats':            stats,
         'rig_summary':      rig_summary,
-        'rigs':             _get_rigs(),
+        'rigs':             _get_user_rigs(request),
         'filters':          filters,
         'statuses':         ['Active', 'Standby', 'Internal', 'Idle'],
         'fleet_equipment':  fleet_equipment,
         'role_choices':     ILMEquipmentUsage.ROLE_CHOICES,
+        'status_labels': status_labels,
+        'status_counts': status_counts,
+        'rig_labels':    rig_labels,
+        'rig_hrs':       rig_hrs,
     })
 
 
@@ -134,7 +180,7 @@ def ilm_remove_equipment(request, pk, eq_pk):
 @login_required
 @supervisor_required
 def ilm_add(request):
-    rigs      = _get_rigs()
+    rigs      = _get_user_rigs(request)
     locations = list(WellLocation.objects.filter(status='Active').values(
         'location', 'category').order_by('category', 'location'))
     vendors   = list(Vendor.objects.filter(status='Active').values('vendor_code', 'vendor_name'))
@@ -166,10 +212,38 @@ def ilm_add(request):
             messages.error(request, 'Date and rig are required.')
             return redirect('ilm_add')
 
+        # ── Duplicate check ──────────────────────────────────────
+        if ILMLog.objects.filter(date=date, rig=rig).exists():
+            messages.error(request,
+                f'Duplicate: An ILM entry for {rig} on {date} already exists. Use Edit instead.')
+            return redirect('ilm_add')
+        # ─────────────────────────────────────────────────────────
+
         during_hrs = float(during_raw) if during_raw else None
 
+        import datetime as _dt2
+        move_group = request.POST.get('move_group', '').strip()
+        if not move_group:
+            try:
+                date_obj2 = _dt2.date.fromisoformat(date)
+                recent = ILMLog.objects.filter(
+                    rig=rig,
+                    ilm_from_location=ilm_from,
+                    ilm_to_location=ilm_to,
+                    move_group__gt='',
+                    date__gte=date_obj2 - _dt2.timedelta(days=7),
+                    date__lt=date_obj2,
+                ).order_by('-date').first()
+                move_group = recent.move_group if recent else f'MG-{rig}-{date}'
+            except Exception:
+                move_group = f'MG-{rig}-{date}'
+
         entry = ILMLog.objects.create(
-            date=date, rig=rig, move_status=move_status,
+            date=date, rig=rig, move_group=move_group, move_status=move_status,
+            start_date=request.POST.get('start_date') or None,
+            start_time=request.POST.get('start_time') or None,
+            end_date=request.POST.get('end_date') or None,
+            end_time=request.POST.get('end_time') or None,
             ilm_from_location=from_loc, ilm_to_location=to_loc,
             distance_kms=dist, expected_ilm_hrs=exp_hrs,
             during_ilm_hrs=during_hrs,
@@ -200,6 +274,7 @@ def ilm_add(request):
         'fleet_equipment':  fleet_equipment,
         'role_choices':     ILMEquipmentUsage.ROLE_CHOICES,
         'today':            datetime.date.today().isoformat(),
+        'default_date':      (datetime.date.today() - datetime.timedelta(days=1)).isoformat(),
         'statuses':         ['Active', 'Standby', 'Internal', 'Idle'],
     })
 
@@ -208,7 +283,7 @@ def ilm_add(request):
 @supervisor_required
 def ilm_edit(request, pk):
     entry     = get_object_or_404(ILMLog, pk=pk)
-    rigs      = _get_rigs()
+    rigs      = _get_user_rigs(request)
     locations = list(WellLocation.objects.filter(status='Active').values('location', 'category'))
     vendors   = list(Vendor.objects.filter(status='Active').values('vendor_code', 'vendor_name'))
     fleet_equipment = Equipment.objects.filter(
@@ -218,6 +293,10 @@ def ilm_edit(request, pk):
 
     if request.method == 'POST':
         entry.date                = request.POST.get('date', entry.date)
+        entry.start_date          = request.POST.get('start_date') or None
+        entry.start_time          = request.POST.get('start_time') or None
+        entry.end_date            = request.POST.get('end_date') or None
+        entry.end_time            = request.POST.get('end_time') or None
         entry.rig                 = request.POST.get('rig', entry.rig)
         entry.move_status         = request.POST.get('move_status', entry.move_status)
         entry.ilm_from_location   = request.POST.get('ilm_from_location', '').strip()
@@ -403,16 +482,17 @@ def ilm_export_excel(request):
     thin = Side(style='thin', color='E2E8F0')
     bdr  = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    rigs_in_data = entries.values_list('rig', flat=True).distinct()
+    rigs_in_data = list(dict.fromkeys(entries.values_list('rig', flat=True)))
     for rig_name in rigs_in_data:
         ws = wb.create_sheet(title=rig_name[:31])
-        headers = ['Date', 'Status', 'From', 'To', 'Dist KM', 'Exp Hrs',
+        headers = ['Date', 'Start Date', 'Start Time', 'End Date', 'End Time',
+                   'Status', 'From', 'To', 'Dist KM', 'Exp Hrs',
                    'Actual Hrs', 'Extra Hrs', 'Saving Hrs',
                    'Trailers', 'T.Loss', 'T.Vendor',
                    'Crane', 'C.Vendor',
                    'Trailers (Reg Nos)', 'Cranes (Reg Nos)',
                    'Remarks']
-        widths  = [12, 12, 18, 18, 10, 10, 10, 10, 10, 10, 8, 20, 10, 20, 30, 30, 25]
+        widths  = [12, 12, 12, 12, 12, 12, 18, 18, 10, 10, 10, 10, 10, 10, 8, 20, 10, 20, 30, 30, 25]
 
         for col, (h, w) in enumerate(zip(headers, widths), 1):
             cell = ws.cell(1, col, h)
@@ -439,7 +519,12 @@ def ilm_export_excel(request):
             ])
 
             vals = [
-                e.date, e.move_status,
+                e.date,
+                e.start_date if e.start_date else '',
+                str(e.start_time)[:5] if e.start_time else '',
+                e.end_date if e.end_date else '',
+                str(e.end_time)[:5] if e.end_time else '',
+                e.move_status,
                 e.ilm_from_location, e.ilm_to_location,
                 e.distance_kms, e.expected_ilm_hrs,
                 float(e.during_ilm_hrs) if e.during_ilm_hrs else '',
@@ -501,7 +586,8 @@ def ilm_export_pdf(request):
 
     html = render_to_string('exports/ilm_pdf.html', {
         'entries':   qs,
-        'stats':     stats,
+        'stats':      stats,
+        'total_moves': total_moves,
         'filters':   filters,
         'generated': datetime.datetime.now(),
     }, request=request)

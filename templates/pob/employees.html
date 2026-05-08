@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128100; POB Employee Master</h3>
+  <div class="d-flex gap-2">
+    <a href="{% url 'pob_masters' %}" class="btn btn-outline-secondary btn-sm">&#9881; Masters</a>
+    <button class="btn btn-primary btn-sm" onclick="showForm()">+ Add Employee</button>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="card-box py-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-md-2">
+      <label class="form-label">Rig</label>
+      <select name="rig" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Rigs</option>
+        {% for r in rigs %}<option value="{{ r }}" {% if filters.rig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Company</label>
+      <select name="company" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Companies</option>
+        {% for c in companies %}<option value="{{ c.pk }}" {% if filters.company == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Designation</label>
+      <select name="desig" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Designations</option>
+        {% for d in desigs %}<option value="{{ d.pk }}" {% if filters.desig == d.pk|stringformat:'s' %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Shift</label>
+      <select name="shift" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Shifts</option>
+        <option value="D" {% if filters.shift == 'D' %}selected{% endif %}>Day</option>
+        <option value="N" {% if filters.shift == 'N' %}selected{% endif %}>Night</option>
+        <option value="G" {% if filters.shift == 'G' %}selected{% endif %}>General</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Category</label>
+      <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Categories</option>
+        <option value="KSD_CREW" {% if filters.category == 'KSD_CREW' %}selected{% endif %}>KSD Crew</option>
+        <option value="VEDANTA_PERSON" {% if filters.category == 'VEDANTA_PERSON' %}selected{% endif %}>Vedanta Person</option>
+        <option value="VEDANTA_VISITOR" {% if filters.category == 'VEDANTA_VISITOR' %}selected{% endif %}>Vedanta Visitor</option>
+        <option value="CONTRACTOR" {% if filters.category == 'CONTRACTOR' %}selected{% endif %}>Contractor</option>
+        <option value="OTHER" {% if filters.category == 'OTHER' %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+    <div class="col-md-2 d-flex gap-2 align-items-end">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'pob_employees' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+  </form>
+</div>
+
+<!-- ADD FORM -->
+<div id="addForm" style="display:none" class="card-box mb-3">
+  <div class="section-title">Add / Edit Employee</div>
+  <form method="POST" action="{% url 'pob_employee_save' %}">
+    {% csrf_token %}
+    <input type="hidden" name="pk" id="empPk">
+    <div class="row g-2">
+      <div class="col-md-3"><label class="form-label fw-semibold">Name *</label>
+        <input type="text" name="name" id="empName" class="form-control" required></div>
+      <div class="col-md-2"><label class="form-label">Designation</label>
+        <select name="desig_id" id="empDesig" class="form-select">
+          <option value="">-- Select --</option>
+          {% for d in desigs %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-2"><label class="form-label">Company</label>
+        <select name="company_id" id="empComp" class="form-select">
+          <option value="">-- Select --</option>
+          {% for c in companies %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-1"><label class="form-label">Rig</label>
+        <select name="rig" id="empRig" class="form-select">
+          <option value="">—</option>
+          {% for r in rigs %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-1"><label class="form-label">Shift</label>
+        <select name="shift" id="empShift" class="form-select">
+          <option value="D">Day</option><option value="N">Night</option><option value="G" selected>G</option>
+        </select></div>
+      <div class="col-md-2"><label class="form-label">Category</label>
+        <select name="category" id="empCat" class="form-select">
+          {% for val, label in cat_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+        </select></div>
+      <div class="col-md-1"><label class="form-label">Mobile</label>
+        <input type="text" name="mobile_no" id="empMobile" class="form-control"></div>
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-success btn-sm">Save</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="hideForm()">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- EMPLOYEE TABLE -->
+<div class="card-box">
+  <div class="section-title">Employees ({{ employees|length }})</div>
+  <div class="table-responsive">
+    <table class="table-clean" style="font-size:12px">
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Designation</th><th>Company</th><th>Rig</th><th>Shift</th><th>Category</th><th>Mobile</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for e in employees %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td style="font-weight:600">{{ e.name }}</td>
+          <td>{{ e.designation|default:"—" }}</td>
+          <td>{{ e.company|default:"—" }}</td>
+          <td>{{ e.rig|default:"—" }}</td>
+          <td><span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px;font-size:10px">{{ e.shift }}</span></td>
+          <td style="font-size:11px;color:#64748b">{{ e.get_category_display|default:"—" }}</td>
+          <td>{{ e.mobile_no|default:"—" }}</td>
+          <td style="white-space:nowrap">
+            <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                    onclick="editEmp({{ e.pk }},'{{ e.name|escapejs }}',{% if e.designation %}{{ e.designation.pk }}{% else %}0{% endif %},'{% if e.company %}{{ e.company.pk }}{% endif %}','{{ e.rig }}','{{ e.shift }}','{{ e.category }}','{{ e.mobile_no }}')">Edit</button>
+            <form method="POST" action="{% url 'pob_employee_delete' e.pk %}" style="display:inline"
+                  onsubmit="return confirm('Delete {{ e.name }}?')">
+              {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-4">No employees found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+function showForm() { document.getElementById('addForm').style.display='block'; }
+function hideForm() {
+  document.getElementById('addForm').style.display='none';
+  document.getElementById('empPk').value='';
+  document.getElementById('empName').value='';
+}
+function editEmp(pk, name, desigId, compId, rig, shift, cat, mobile) {
+  showForm();
+  document.getElementById('empPk').value    = pk;
+  document.getElementById('empName').value  = name;
+  document.getElementById('empDesig').value = desigId || '';
+  document.getElementById('empComp').value  = compId  || '';
+  document.getElementById('empRig').value   = rig     || '';
+  document.getElementById('empShift').value = shift   || 'G';
+  document.getElementById('empCat').value   = cat     || '';
+  document.getElementById('empMobile').value= mobile  || '';
+  document.getElementById('empName').focus();
+  window.scrollTo({top: document.getElementById('addForm').offsetTop - 80, behavior: 'smooth'});
+}
+</script>
+{% endblock %}
+{% endblock %}

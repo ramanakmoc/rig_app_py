@@ -12,13 +12,13 @@
     <div class="row g-3">
       <div class="col-md-4 col-6">
         <label class="form-label">Date <span class="text-danger">*</span></label>
-        <input type="date" name="date" class="form-control" value="{{ today }}" max="{{ today }}" required>
+        <input type="date" name="date" class="form-control" value="{{ default_date }}" max="{{ today }}" required>
       </div>
       <div class="col-md-4 col-6">
         <label class="form-label">Rig / Location <span class="text-danger">*</span></label>
-        <select name="rig" class="form-select" required>
-          <option value="">— Select —</option>
-          {% for r in rigs %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        <select name="rig" class="form-select" required{% if rigs|length == 1 %} style="pointer-events:none;background:#f0fdf4;border-color:#16a34a;font-weight:700"{% endif %}>
+          {% if rigs|length != 1 %}<option value="">— Select —</option>{% endif %}
+          {% for r in rigs %}<option value="{{ r }}"{% if rigs|length == 1 %} selected{% endif %}>{{ r }}</option>{% endfor %}
         </select>
       </div>
       <div class="col-md-4 col-6">
