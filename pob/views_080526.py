@@ -8,8 +8,7 @@ from django.http import JsonResponse
 from core.decorators import supervisor_required, admin_required
 from masters.models import Rig, WellLocation, WellLocation
 from .models import (POBDailyLog, POBPerson, POBDesignation,
-                     POBCompany, POBAccommodation, POBRoomNo, POBEmployee,
-                     POBCategory)
+                     POBCompany, POBAccommodation, POBRoomNo, POBEmployee)
 
 
 def _get_rigs():
@@ -22,15 +21,6 @@ def _get_user_rigs(request):
         return request.user.profile.filter_rigs(all_rigs)
     except Exception:
         return all_rigs
-
-
-def _get_cat_choices():
-    """Safe wrapper — falls back to hardcoded list if migration not yet applied."""
-    try:
-        choices = POBCategory.as_choices()
-        return choices if choices else POBPerson.CATEGORY_CHOICES
-    except Exception:
-        return POBPerson.CATEGORY_CHOICES
 
 def _pob_qs_filter(qs, request, rig_f, from_f, to_f, month_f):
     import calendar
@@ -390,7 +380,7 @@ def pob_day_detail(request, pk):
         'desigs':     POBDesignation.objects.filter(is_active=True),
         'companies':  POBCompany.objects.filter(is_active=True),
         'accomms':    POBAccommodation.objects.filter(is_active=True),
-        'cat_choices': _get_cat_choices(),
+        'cat_choices': POBPerson.CATEGORY_CHOICES,
         'shift_choices': POBPerson.SHIFT_CHOICES,
     })
 
@@ -451,7 +441,7 @@ def pob_add(request):
         'default_date': prev_date,
         'prev_rig':     prev_rig,
         'prev_persons': prev_persons,
-        'categories':   _get_cat_choices(),
+        'categories':   POBPerson.CATEGORY_CHOICES,
         'shifts':       POBPerson.SHIFT_CHOICES,
         'desigs':       desigs,
         'companies':    companies,
@@ -606,18 +596,11 @@ def pob_delete_log(request, pk):
 @login_required
 @supervisor_required
 def pob_masters(request):
-    try:
-        if not POBCategory.objects.exists():
-            POBCategory.seed_defaults()
-        pob_categories = POBCategory.objects.all()
-    except Exception:
-        pob_categories = []
     return render(request, 'pob/masters.html', {
-        'page_title':      'POB Masters',
-        'desigs':          POBDesignation.objects.all(),
-        'companies':       POBCompany.objects.all(),
-        'accomms':         POBAccommodation.objects.prefetch_related('rooms').all(),
-        'pob_categories':  pob_categories,
+        'page_title': 'POB Masters',
+        'desigs':     POBDesignation.objects.all(),
+        'companies':  POBCompany.objects.all(),
+        'accomms':    POBAccommodation.objects.prefetch_related('rooms').all(),
     })
 
 
@@ -651,25 +634,6 @@ def pob_master_save(request, master_type):
             obj=get_object_or_404(POBRoomNo,pk=pk); obj.room_no=room_no; obj.accommodation=accomm; obj.save()
         else:
             POBRoomNo.objects.get_or_create(accommodation=accomm,room_no=room_no)
-    elif master_type == 'category':
-        pk    = request.POST.get('pk','').strip()
-        label = request.POST.get('label','').strip()
-        key   = request.POST.get('key','').strip().upper().replace(' ','_')
-        order = int(request.POST.get('sort_order', 0) or 0)
-        active = request.POST.get('is_active','') == 'on'
-        if not label:
-            messages.error(request, 'Label is required.')
-            return redirect('pob_masters')
-        if pk:
-            obj = get_object_or_404(POBCategory, pk=pk)
-            obj.label = label; obj.sort_order = order; obj.is_active = active; obj.save()
-        else:
-            if not key:
-                key = label.upper().replace(' ','_').replace('/','_')[:50]
-            if POBCategory.objects.filter(key=key).exists():
-                messages.error(request, f'A category with key "{key}" already exists.')
-                return redirect('pob_masters')
-            POBCategory.objects.create(key=key, label=label, sort_order=order, is_active=True)
     messages.success(request, 'Saved.')
     return redirect('pob_masters')
 
@@ -678,7 +642,7 @@ def pob_master_save(request, master_type):
 @admin_required
 def pob_master_delete(request, master_type, pk):
     if request.method == 'POST':
-        model_map = {'designation':POBDesignation,'company':POBCompany,'accommodation':POBAccommodation,'room':POBRoomNo,'category':POBCategory}
+        model_map = {'designation':POBDesignation,'company':POBCompany,'accommodation':POBAccommodation,'room':POBRoomNo}
         model = model_map.get(master_type)
         if model:
             obj=get_object_or_404(model,pk=pk); name=str(obj); obj.delete()
@@ -707,8 +671,6 @@ def pob_employees(request):
     if desig_f: qs = qs.filter(designation_id=desig_f)
     if shift_f: qs = qs.filter(shift=shift_f)
     if cat_f:   qs = qs.filter(category=cat_f)
-    cat_choices = _get_cat_choices()
-    cat_dict    = dict(cat_choices)
     return render(request, 'pob/employees.html', {
         'page_title':  'POB Employee Master',
         'employees':   qs.order_by('rig','name'),
@@ -716,8 +678,7 @@ def pob_employees(request):
         'desigs':      POBDesignation.objects.filter(is_active=True),
         'rigs':        _get_rigs(),
         'filters':     {'rig':rig_f,'company':comp_f,'desig':desig_f,'shift':shift_f,'category':cat_f},
-        'cat_choices': cat_choices,
-        'cat_dict':    cat_dict,
+        'cat_choices': POBPerson.CATEGORY_CHOICES,
     })
 
 
@@ -726,41 +687,25 @@ def pob_employees(request):
 def pob_employee_save(request):
     if request.method != 'POST':
         return redirect('pob_employees')
-    try:
-        pk       = request.POST.get('pk','').strip()
-        name     = request.POST.get('name','').strip()
-        rig      = request.POST.get('rig','').strip()
-        desig_id = request.POST.get('desig_id','').strip()
-        comp_id  = request.POST.get('company_id','').strip()
-        shift    = request.POST.get('shift','G')
-        category = request.POST.get('category','KSD_CREW')
-        mobile   = request.POST.get('mobile_no','').strip()
-
-        if not name:
-            messages.error(request, 'Name is required.')
-            return redirect('pob_employees')
-
-        desig = POBDesignation.objects.get(pk=int(desig_id)) if desig_id else None
-        comp  = POBCompany.objects.get(pk=int(comp_id))      if comp_id  else None
-
-        if pk:
-            obj = get_object_or_404(POBEmployee, pk=pk)
-            obj.name=name; obj.rig=rig; obj.designation=desig; obj.company=comp
-            obj.shift=shift; obj.category=category; obj.mobile_no=mobile
-            obj.save()
-            messages.success(request, f'{name} updated.')
-        else:
-            # Check for duplicate (name + company unique_together)
-            if POBEmployee.objects.filter(name=name, company=comp).exists():
-                messages.error(request, f'Employee "{name}" already exists for this company.')
-                return redirect('pob_employees')
-            POBEmployee.objects.create(
-                name=name, rig=rig, designation=desig, company=comp,
-                shift=shift, category=category, mobile_no=mobile
-            )
-            messages.success(request, f'{name} added.')
-    except Exception as e:
-        messages.error(request, f'Error saving employee: {e}')
+    pk       = request.POST.get('pk','').strip()
+    name     = request.POST.get('name','').strip()
+    rig      = request.POST.get('rig','').strip()
+    desig_id = request.POST.get('desig_id','').strip()
+    comp_id  = request.POST.get('company_id','').strip()
+    shift    = request.POST.get('shift','G')
+    category = request.POST.get('category','KSD_CREW')
+    mobile   = request.POST.get('mobile_no','').strip()
+    desig = POBDesignation.objects.get(pk=int(desig_id)) if desig_id else None
+    comp  = POBCompany.objects.get(pk=int(comp_id)) if comp_id else None
+    if pk:
+        obj = get_object_or_404(POBEmployee, pk=pk)
+        obj.name=name; obj.rig=rig; obj.designation=desig; obj.company=comp
+        obj.shift=shift; obj.category=category; obj.mobile_no=mobile; obj.save()
+        messages.success(request, f'{name} updated.')
+    else:
+        POBEmployee.objects.create(name=name,rig=rig,designation=desig,company=comp,
+                                   shift=shift,category=category,mobile_no=mobile)
+        messages.success(request, f'{name} added.')
     return redirect('pob_employees')
 
 

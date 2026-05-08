@@ -162,93 +162,6 @@
     </div>
   </div>
 
-
-  <!-- POB CATEGORIES -->
-  <div class="col-md-12">
-    <div class="card-box">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div class="section-title" style="margin:0">&#127991; POB Categories ({{ pob_categories|length }}) &nbsp;<small style="font-size:11px;font-weight:400;color:#64748b">— controls the Category dropdown in POB entry form</small></div>
-        <button class="btn btn-outline-primary btn-sm" onclick="showAddForm('cat')">+ Add Category</button>
-      </div>
-
-      <!-- Add/Edit Form -->
-      <div id="catForm" style="display:none;background:#f8fafc;border-radius:6px;padding:12px;margin-bottom:12px">
-        <form method="POST" action="{% url 'pob_master_save' 'category' %}">
-          {% csrf_token %}
-          <input type="hidden" name="pk" id="catPk">
-          <div class="row g-2 align-items-end">
-            <div class="col-md-4">
-              <label class="form-label form-label-sm">Label (display name) *</label>
-              <input type="text" name="label" id="catLabel" class="form-control form-control-sm" placeholder="e.g. Vedanta Person" required>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label form-label-sm">Key (auto-generated for new)</label>
-              <input type="text" name="key" id="catKey" class="form-control form-control-sm" placeholder="e.g. VEDANTA_PERSON" style="font-family:monospace">
-              <small class="text-muted" style="font-size:10px">Leave blank to auto-generate from label. Cannot change after creation.</small>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label form-label-sm">Sort Order</label>
-              <input type="number" name="sort_order" id="catOrder" class="form-control form-control-sm" value="0" min="0">
-            </div>
-            <div class="col-md-1" style="padding-top:20px">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="is_active" id="catActive" checked>
-                <label class="form-check-label form-label-sm" for="catActive">Active</label>
-              </div>
-            </div>
-            <div class="col-md-2 d-flex gap-2">
-              <button type="submit" class="btn btn-success btn-sm">Save</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="hideForm('cat')">Cancel</button>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      <!-- Category Table -->
-      <div style="overflow-x:auto">
-        <table class="table-clean" style="font-size:12px">
-          <thead>
-            <tr>
-              <th style="width:40px">#</th>
-              <th>Label</th>
-              <th>Key</th>
-              <th style="width:80px">Sort</th>
-              <th style="width:70px">Active</th>
-              <th style="width:100px">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for c in pob_categories %}
-            <tr style="{% if not c.is_active %}opacity:0.5{% endif %}">
-              <td style="color:#94a3b8">{{ forloop.counter }}</td>
-              <td style="font-weight:600">{{ c.label }}</td>
-              <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:11px">{{ c.key }}</code></td>
-              <td>{{ c.sort_order }}</td>
-              <td>
-                {% if c.is_active %}
-                  <span style="background:#dcfce7;color:#16a34a;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:600">Yes</span>
-                {% else %}
-                  <span style="background:#fee2e2;color:#dc2626;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:600">No</span>
-                {% endif %}
-              </td>
-              <td style="white-space:nowrap">
-                <button type="button" class="btn btn-outline-primary btn-sm py-0"
-                        onclick="editCat({{ c.pk }},'{{ c.label|escapejs }}','{{ c.key }}',{{ c.sort_order }},{{ c.is_active|lower }})">Edit</button>
-                <form method="POST" action="{% url 'pob_master_delete' 'category' c.pk %}" style="display:inline"
-                      onsubmit="return confirm('Delete category &quot;{{ c.label }}&quot;? Existing POB records with this category will not be affected.')">
-                  {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
-                </form>
-              </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="6" class="text-center text-muted" style="padding:20px">No categories yet. Click &quot;+ Add Category&quot; to start.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
 </div>
 
 <!-- ADD ROOM MODAL -->
@@ -282,7 +195,6 @@ function showAddForm(type) {
   if (type === 'desig') { document.getElementById('desigPk').value=''; document.getElementById('desigName').value=''; document.getElementById('desigCat').value=''; }
   if (type === 'comp')  { document.getElementById('compPk').value=''; document.getElementById('compName').value=''; document.getElementById('compCode').value=''; }
   if (type === 'accomm'){ document.getElementById('accommPk').value=''; document.getElementById('accommName').value=''; }
-  if (type === 'cat')   { document.getElementById('catPk').value=''; document.getElementById('catLabel').value=''; document.getElementById('catKey').value=''; document.getElementById('catKey').readOnly=false; document.getElementById('catKey').style.background=''; document.getElementById('catOrder').value='0'; document.getElementById('catActive').checked=true; }
 }
 function hideForm(type) { document.getElementById(type+'Form').style.display='none'; }
 
@@ -302,20 +214,6 @@ function editAccomm(pk, name) {
   showAddForm('accomm');
   document.getElementById('accommPk').value = pk;
   document.getElementById('accommName').value = name;
-}
-function editCat(pk, label, key, order, active) {
-  showAddForm('cat');
-  document.getElementById('catPk').value = pk;
-  document.getElementById('catLabel').value = label;
-  document.getElementById('catKey').value = key;
-  document.getElementById('catKey').readOnly = true;
-  document.getElementById('catKey').style.background = '#f1f5f9';
-  document.getElementById('catOrder').value = order;
-  document.getElementById('catActive').checked = active;
-}
-function showAddForm_cat_wrapper() {
-  document.getElementById('catKey').readOnly = false;
-  document.getElementById('catKey').style.background = '';
 }
 function showAddRoom(accommId, accommName) {
   document.getElementById('roomAccommId').value = accommId;

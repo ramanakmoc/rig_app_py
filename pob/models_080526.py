@@ -161,37 +161,3 @@ class POBEmployee(models.Model):
 
 
 # ── POB EMPLOYEE MASTER ───────────────────────────────────────────────
-
-
-# ── POB CATEGORY MASTER ───────────────────────────────────────────────
-class POBCategory(models.Model):
-    """Dynamic category list — replaces the hardcoded CATEGORY_CHOICES."""
-    key        = models.CharField(max_length=50, unique=True,
-                                   help_text='Internal key stored on POBPerson.category')
-    label      = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active  = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['sort_order', 'label']
-
-    def __str__(self):
-        return self.label
-
-    @classmethod
-    def as_choices(cls):
-        return list(cls.objects.filter(is_active=True).values_list('key', 'label'))
-
-    @classmethod
-    def seed_defaults(cls):
-        defaults = [
-            ('VEDANTA_PERSON',  'Vedanta Person',      1),
-            ('VEDANTA_VISITOR', 'Vedanta Visitor',     2),
-            ('VEDANTA_SERVICE', 'Vedanta Services',    3),
-            ('VEDANTA_DRIVER',  'Vedanta Driver',      4),
-            ('KSD_CREW',        'KSD Drilling Crew',   5),
-            ('CONTRACTOR',      'Contractor / Vendor', 6),
-            ('OTHER',           'Other',               7),
-        ]
-        for key, label, order in defaults:
-            cls.objects.get_or_create(key=key, defaults={'label': label, 'sort_order': order})

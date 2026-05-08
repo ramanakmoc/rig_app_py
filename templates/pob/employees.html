@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dict_filters %}
 {% block content %}
 <div class="page-header">
   <h3>&#128100; POB Employee Master</h3>
@@ -45,11 +46,7 @@
       <label class="form-label">Category</label>
       <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
         <option value="">All Categories</option>
-        <option value="KSD_CREW" {% if filters.category == 'KSD_CREW' %}selected{% endif %}>KSD Crew</option>
-        <option value="VEDANTA_PERSON" {% if filters.category == 'VEDANTA_PERSON' %}selected{% endif %}>Vedanta Person</option>
-        <option value="VEDANTA_VISITOR" {% if filters.category == 'VEDANTA_VISITOR' %}selected{% endif %}>Vedanta Visitor</option>
-        <option value="CONTRACTOR" {% if filters.category == 'CONTRACTOR' %}selected{% endif %}>Contractor</option>
-        <option value="OTHER" {% if filters.category == 'OTHER' %}selected{% endif %}>Other</option>
+        {% for val, lbl in cat_choices %}<option value="{{ val }}" {% if filters.category == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-md-2 d-flex gap-2 align-items-end">
@@ -118,7 +115,7 @@
           <td>{{ e.company|default:"—" }}</td>
           <td>{{ e.rig|default:"—" }}</td>
           <td><span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px;font-size:10px">{{ e.shift }}</span></td>
-          <td style="font-size:11px;color:#64748b">{{ e.get_category_display|default:"—" }}</td>
+          <td style="font-size:11px;color:#64748b">{{ cat_dict|get_item:e.category|default:e.category|default:"—" }}</td>
           <td>{{ e.mobile_no|default:"—" }}</td>
           <td style="white-space:nowrap">
             <button type="button" class="btn btn-outline-primary btn-sm py-0"
