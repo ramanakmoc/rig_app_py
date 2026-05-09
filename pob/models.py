@@ -87,7 +87,7 @@ class POBPerson(models.Model):
     ]
 
     pob_log       = models.ForeignKey(POBDailyLog, on_delete=models.CASCADE, related_name='persons')
-    category      = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='KSD_CREW', db_index=True)
+    category      = models.CharField(max_length=50, default='KSD_CREW', db_index=True)
     sno           = models.IntegerField(null=True, blank=True)
     name          = models.CharField(max_length=100, db_index=True)
     designation   = models.ForeignKey(POBDesignation, null=True, blank=True,
@@ -146,7 +146,7 @@ class POBEmployee(models.Model):
     shift         = models.CharField(max_length=2, choices=[('D','Day'),('N','Night'),('G','General')], default='G')
     mobile_no     = models.CharField(max_length=20, blank=True)
     nationality   = models.CharField(max_length=50, default='INDIAN')
-    category      = models.CharField(max_length=30, blank=True)
+    category      = models.CharField(max_length=50, blank=True)
     is_active     = models.BooleanField(default=True)
     created_at    = models.DateTimeField(auto_now_add=True)
 
@@ -190,8 +190,9 @@ class POBCategory(models.Model):
             ('VEDANTA_SERVICE', 'Vedanta Services',    3),
             ('VEDANTA_DRIVER',  'Vedanta Driver',      4),
             ('KSD_CREW',        'KSD Drilling Crew',   5),
-            ('CONTRACTOR',      'Contractor / Vendor', 6),
-            ('OTHER',           'Other',               7),
+            ('KSD_3RD_PARTY',   'KSD 3rd Party',       6),
+            ('CONTRACTOR',      'Contractor / Vendor', 7),
+            ('OTHER',           'Other',               8),
         ]
         for key, label, order in defaults:
             cls.objects.get_or_create(key=key, defaults={'label': label, 'sort_order': order})

@@ -2,8 +2,12 @@
 {% block content %}
 <div class="page-header">
   <h3>&#128101; POB — {{ log.rig }} — {{ log.date }}</h3>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     <a href="{% url 'pob_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; Back</a>
+    <a href="{% url 'pob_report_export' %}?log={{ log.pk }}&fmt=excel"
+       class="btn btn-outline-success btn-sm" title="Download Excel">&#x1F4C5; Excel</a>
+    <a href="{% url 'pob_report_export' %}?log={{ log.pk }}&fmt=pdf"
+       class="btn btn-outline-danger btn-sm" title="Download PDF">&#x1F4C4; PDF</a>
   </div>
 </div>
 <div class="row g-3 mb-4">
@@ -13,6 +17,15 @@
   <div class="col-md-2 col-4"><div class="stat-card blue"><h6>Breakfast</h6><h2>{{ log.meal_breakfast }}</h2></div></div>
   <div class="col-md-2 col-4"><div class="stat-card green"><h6>Lunch</h6><h2>{{ log.meal_lunch }}</h2></div></div>
   <div class="col-md-2 col-4"><div class="stat-card red"><h6>Dinner</h6><h2>{{ log.meal_dinner }}</h2></div></div>
+</div>
+
+<!-- VIEW TOGGLE -->
+<div class="d-flex gap-2 mb-3 align-items-center">
+  <span style="font-size:12px;color:#64748b;font-weight:600">Group by:</span>
+  <button id="btnShiftView" onclick="setView('shift')"
+    class="btn btn-sm btn-primary" style="font-size:12px">&#9728; Shift</button>
+  <button id="btnCatView" onclick="setView('category')"
+    class="btn btn-sm btn-outline-secondary" style="font-size:12px">&#127991; Category</button>
 </div>
 
 {% if request.user.profile.role != 'viewer' %}
@@ -107,6 +120,7 @@
 </div>
 {% endif %}
 
+<div id="shiftView">
 {% for cat_name, persons in categories.items %}
 <div class="card-box mb-3">
   <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
@@ -174,6 +188,76 @@
 {% empty %}
 <div class="card-box text-center py-4 text-muted">No persons recorded.</div>
 {% endfor %}
+</div><!-- end #shiftView -->
+
+<!-- CATEGORY VIEW -->
+<div id="categoryView" style="display:none">
+{% for cat_name, persons in cat_groups.items %}
+<div class="card-box mb-3">
+  <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+    <span>&#127991; {{ cat_name }}</span>
+    <span style="background:#0f766e;color:white;padding:2px 10px;border-radius:12px;font-size:11px">{{ persons|length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table-clean" style="font-size:11px">
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Designation</th><th>Sh</th><th>Company</th><th>Accommodation</th><th>Room</th><th>DOJ</th><th>Days</th><th>Mobile</th><th>Meals</th><th>Status</th><th>Remarks</th>
+        {% if request.user.profile.role != 'viewer' %}<th>Actions</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for p in persons %}
+        <tr {% if p.left_site %}style="opacity:0.45;text-decoration:line-through"{% elif p.arrived %}style="background:#f0fdf4"{% endif %}>
+          <td>{{ forloop.counter }}</td>
+          <td style="font-weight:600;white-space:nowrap">{{ p.name }}</td>
+          <td>{{ p.get_designation|default:"—" }}</td>
+          <td><span style="background:{% if p.shift == 'D' %}#dbeafe;color:#1d4ed8{% elif p.shift == 'N' %}#f3e8ff;color:#7c3aed{% else %}#f1f5f9;color:#475569{% endif %};padding:1px 5px;border-radius:6px;font-size:10px;font-weight:700">{{ p.shift|default:"G" }}</span></td>
+          <td>{{ p.get_company|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.get_accommodation|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.get_room_no|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.doj|date:"d M y"|default:"—" }}</td>
+          <td style="font-weight:700;color:#1d4ed8">{{ p.days_on_site }}</td>
+          <td style="font-size:10px">{{ p.mobile_no|default:"—" }}</td>
+          <td>
+            {% if p.meal_b %}<span style="background:#dbeafe;color:#1d4ed8;padding:1px 3px;border-radius:3px;font-size:10px">B</span>{% endif %}
+            {% if p.meal_l %}<span style="background:#dcfce7;color:#15803d;padding:1px 3px;border-radius:3px;font-size:10px">L</span>{% endif %}
+            {% if p.meal_d %}<span style="background:#fee2e2;color:#991b1b;padding:1px 3px;border-radius:3px;font-size:10px">D</span>{% endif %}
+          </td>
+          <td>
+            {% if p.left_site %}<span style="background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:8px;font-size:10px">LEFT</span>
+            {% elif p.arrived %}<span style="background:#dcfce7;color:#15803d;padding:1px 5px;border-radius:8px;font-size:10px">ARRIVED</span>
+            {% else %}<span style="background:#f1f5f9;color:#475569;padding:1px 5px;border-radius:8px;font-size:10px">ON SITE</span>{% endif %}
+          </td>
+          <td style="font-size:10px;color:#64748b;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.remarks|default:"—" }}</td>
+          {% if request.user.profile.role != 'viewer' %}
+          <td style="white-space:nowrap">
+            <button type="button" class="btn btn-outline-primary btn-sm py-0"
+              onclick="openEdit({{ p.pk }},'{{ p.name|escapejs }}','{{ p.category }}','{{ p.shift }}',
+                {% if p.designation %}{{ p.designation.pk }}{% else %}0{% endif %},'{{ p.get_designation|escapejs }}',
+                {% if p.company %}{{ p.company.pk }}{% else %}0{% endif %},'{{ p.get_company|escapejs }}',
+                {% if p.accommodation %}{{ p.accommodation.pk }}{% else %}0{% endif %},'{{ p.get_accommodation|escapejs }}',
+                {% if p.room_no %}{{ p.room_no.pk }}{% else %}0{% endif %},'{{ p.get_room_no|escapejs }}',
+                '{{ p.doj|date:"Y-m-d"|default:"" }}','{{ p.mobile_no }}',
+                {{ p.meal_b|lower }},{{ p.meal_l|lower }},{{ p.meal_d|lower }},
+                {{ p.arrived|lower }},{{ p.left_site|lower }},{{ p.is_active|lower }},
+                '{{ p.remarks|escapejs }}')" >Edit</button>
+            {% if request.user.profile.role == 'admin' %}
+            <form method="POST" action="{% url 'pob_delete_person' p.pk %}" style="display:inline"
+                  onsubmit="return confirm('Remove {{ p.name }}?')">
+              {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% empty %}
+<div class="card-box text-center py-4 text-muted">No persons recorded.</div>
+{% endfor %}
+</div><!-- end #categoryView -->
 
 <!-- EDIT MODAL -->
 <div class="modal fade" id="editModal" tabindex="-1">
@@ -266,6 +350,24 @@
 
 {% block extra_js %}
 <script>
+// ── View Toggle ────────────────────────────────────────────────────────────
+function setView(view) {
+  var isShift = view === 'shift';
+  document.getElementById('shiftView').style.display    = isShift ? '' : 'none';
+  document.getElementById('categoryView').style.display = isShift ? 'none' : '';
+  document.getElementById('btnShiftView').className  = 'btn btn-sm ' + (isShift ? 'btn-primary' : 'btn-outline-secondary');
+  document.getElementById('btnCatView').className    = 'btn btn-sm ' + (!isShift ? 'btn-primary' : 'btn-outline-secondary');
+  // style tweak for text
+  document.getElementById('btnShiftView').style.fontSize = '12px';
+  document.getElementById('btnCatView').style.fontSize   = '12px';
+  localStorage.setItem('pobView', view);
+}
+// Restore last used view
+(function() {
+  var saved = localStorage.getItem('pobView');
+  if (saved === 'category') setView('category');
+})();
+
 // Global floating dropdown for detail page
 let _detailFloatTarget = null;
 const _detailDrop = document.createElement('div');

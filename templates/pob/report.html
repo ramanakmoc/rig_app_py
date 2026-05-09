@@ -155,6 +155,10 @@
           <td style="font-size:11px;color:#64748b">{{ log.remarks|default:"—" }}</td>
           <td style="white-space:nowrap">
             <a href="{% url 'pob_day_detail' log.pk %}" class="btn btn-outline-primary btn-sm py-0">View</a>
+            <a href="{% url 'pob_report_export' %}?log={{ log.pk }}&fmt=excel"
+               class="btn btn-outline-success btn-sm py-0" title="Download Excel">&#x1F4C5; XLS</a>
+            <a href="{% url 'pob_report_export' %}?log={{ log.pk }}&fmt=pdf"
+               class="btn btn-outline-danger btn-sm py-0" title="Download PDF">&#x1F4C4; PDF</a>
             {% if request.user.profile.role == 'admin' %}
             <form method="POST" action="{% url 'pob_delete_log' log.pk %}" style="display:inline"
                   onsubmit="return confirm('Delete POB for {{ log.rig }} on {{ log.date }}?')">

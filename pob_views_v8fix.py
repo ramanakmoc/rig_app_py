@@ -153,24 +153,6 @@ def pob_report(request):
         'chart_colors':    json.dumps(COLORS),
     })
 
-def _pob_quick_groups(persons):
-    """
-    Returns (groups, grand_total, night_on_site) where:
-      groups        = [(company_name, count), ...]  sorted by count desc
-      grand_total   = total active persons
-      night_on_site = night shift persons not left site
-    """
-    from collections import defaultdict
-    company_counts = defaultdict(int)
-    for p in persons:
-        label = p.company.name if p.company else 'No Company'
-        company_counts[label] += 1
-    groups        = sorted(company_counts.items(), key=lambda x: -x[1])
-    grand_total   = sum(v for _, v in groups)
-    night_on_site = persons.filter(shift='N', left_site=False).count()
-    return groups, grand_total, night_on_site
-
-
 def pob_report_export(request):
     """PDF + Excel POB daily report."""
     import openpyxl
@@ -205,23 +187,8 @@ def pob_report_export(request):
     shift_general = persons.filter(shift='G').count()
 
     if fmt == 'pdf':
-        # Build category groups for Report 3
-        cat_choices_list = _get_cat_choices()
-        cat_label_map    = dict(cat_choices_list)
-        cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
-        _cat_buckets     = {}
-        for p in persons:
-            key   = (p.category or 'OTHER').strip()
-            label = cat_label_map.get(key) or next(
-                (lbl for k, lbl in cat_choices_list if k.upper() == key.upper()), None
-            ) or key.replace('_', ' ').title()
-            _cat_buckets.setdefault(label, []).append(p)
-        def _cat_sort(item):
-            key_for = next((k for k, v in cat_label_map.items() if v == item[0]), None)
-            return cat_order_map.get(key_for, 999)
-        pdf_cat_groups = dict(sorted(_cat_buckets.items(), key=_cat_sort))
         return _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site,
-                               shift_day, shift_night, shift_general, pdf_cat_groups)
+                               shift_day, shift_night, shift_general)
 
     # ── EXCEL ──────────────────────────────────────────────────────────
     wb = openpyxl.Workbook()
@@ -394,7 +361,7 @@ def pob_report_export(request):
     return resp
 
 
-def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, shift_day=0, shift_night=0, shift_general=0, cat_groups=None):
+def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, shift_day=0, shift_night=0, shift_general=0):
     from django.template.loader import render_to_string
     from weasyprint import HTML
     from django.http import HttpResponse
@@ -402,7 +369,6 @@ def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, s
         'log': log, 'persons': persons, 'groups': groups,
         'grand_total': grand_total, 'night_on_site': night_on_site,
         'shift_day': shift_day, 'shift_night': shift_night, 'shift_general': shift_general,
-        'cat_groups': cat_groups or {},
         'company_name': 'KRISS DRILLING PVT. LTD.',
     }, request=request)
     pdf = HTML(string=html_str, base_url=request.build_absolute_uri('/')).write_pdf()
