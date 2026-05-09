@@ -166,13 +166,16 @@
           </tr>
         </thead>
         <tbody id="tbody">
-          {% for cat_label, cat_persons in prev_persons_grouped.items %}
+          {% for p in prev_persons %}
+          {% if forloop.first or p.category != prev_cat %}
+          {% with prev_cat=p.category %}{% endwith %}
           <tr style="background:#0b3d6d">
-            <td colspan="18" style="padding:6px 12px;font-size:11px;font-weight:700;color:#fff;letter-spacing:0.5px;border-bottom:2px solid #1e5a9c">
-              &#127991; {{ cat_label }} &nbsp;<span style="background:rgba(255,255,255,0.2);padding:1px 7px;border-radius:8px;font-size:10px">{{ cat_persons|length }}</span>
+            <td colspan="17" style="padding:5px 10px;font-size:11px;font-weight:700;color:#fff;letter-spacing:0.5px">
+              🏷 {% for val, label in categories %}{% if val == p.category %}{{ label }}{% endif %}{% endfor %}
+              {% if not p.category %}Other{% endif %}
             </td>
           </tr>
-          {% for p in cat_persons %}
+          {% endif %}
           {% if p.relief_due %}
           <tr data-row="1" class="relief-row" style="background:#fff0f0;border-left:3px solid #dc2626">
           {% else %}
@@ -242,7 +245,6 @@
                 onclick="deleteRow(this)" title="Remove">&#10005;</button>
             </td>
           </tr>
-          {% endfor %}
           {% endfor %}
         </tbody>
       </table>

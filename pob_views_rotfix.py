@@ -534,25 +534,7 @@ def pob_add(request):
                 if p.relief_due:
                     rotation_due_count += 1
 
-            # ── Group prev_persons by category in master order ──────────
-            cat_choices_list = _get_cat_choices()
-            cat_label_map    = dict(cat_choices_list)
-            cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
-            _buckets = {}
-            for p in raw_persons:
-                key   = (p.category or 'OTHER').strip()
-                label = cat_label_map.get(key, key.replace('_',' ').title())
-                _buckets.setdefault(label, []).append(p)
-            # Sort groups by master order, persons within by name
-            def _grp_sort(item):
-                lbl = item[0]
-                k   = next((k for k,v in cat_label_map.items() if v==lbl), None)
-                return cat_order_map.get(k, 999)
-            prev_persons_grouped = dict(sorted(_buckets.items(), key=_grp_sort))
-            for grp in prev_persons_grouped.values():
-                grp.sort(key=lambda p: p.name)
-            # Flat list still needed for row numbering
-            prev_persons = [p for grp in prev_persons_grouped.values() for p in grp]
+            prev_persons = raw_persons
     except Exception:
         pass
 
@@ -566,7 +548,6 @@ def pob_add(request):
         'prev_persons':      prev_persons,
         'rotation_due_count':rotation_due_count,
         'rotation_days':     ROTATION_DAYS,
-        'prev_persons_grouped': locals().get('prev_persons_grouped', {}),
         'categories':        _get_cat_choices(),
         'shifts':            POBPerson.SHIFT_CHOICES,
         'desigs':            desigs,

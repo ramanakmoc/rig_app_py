@@ -130,16 +130,9 @@
     </div>
 
     {% if prev_persons %}
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#15803d">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#15803d">
       ✓ Pre-filled {{ prev_persons|length }} persons from previous day — update meals and status as needed.
     </div>
-    {% if rotation_due_count %}
-    <div style="background:#fff0f0;border:1.5px solid #fca5a5;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:12px;color:#dc2626;display:flex;align-items:center;gap:8px">
-      <span style="font-size:16px">⚠️</span>
-      <strong>{{ rotation_due_count }} crew member{{ rotation_due_count|pluralize }} have completed {{ rotation_days }}+ days on site.</strong>
-      Their <em>Left Site</em> checkbox is pre-ticked below — uncheck it if the reliever hasn't arrived yet.
-    </div>
-    {% endif %}
     {% endif %}
 
     <div class="table-responsive">
@@ -162,22 +155,12 @@
             <th style="width:55px">Arrived</th>
             <th style="width:40px">Left</th>
             <th style="min-width:100px">Remarks</th>
-            <th style="width:80px">Actions</th>
+            <th style="width:30px"></th>
           </tr>
         </thead>
         <tbody id="tbody">
-          {% for cat_label, cat_persons in prev_persons_grouped.items %}
-          <tr style="background:#0b3d6d">
-            <td colspan="18" style="padding:6px 12px;font-size:11px;font-weight:700;color:#fff;letter-spacing:0.5px;border-bottom:2px solid #1e5a9c">
-              &#127991; {{ cat_label }} &nbsp;<span style="background:rgba(255,255,255,0.2);padding:1px 7px;border-radius:8px;font-size:10px">{{ cat_persons|length }}</span>
-            </td>
-          </tr>
-          {% for p in cat_persons %}
-          {% if p.relief_due %}
-          <tr data-row="1" class="relief-row" style="background:#fff0f0;border-left:3px solid #dc2626">
-          {% else %}
-          <tr data-row="1">
-          {% endif %}
+          {% for p in prev_persons %}
+          <tr>
             <td>{{ forloop.counter }}</td>
             <td>
               <select name="category" class="form-select form-select-sm">
@@ -185,11 +168,6 @@
               </select>
             </td>
             <td>
-              {% if p.relief_due %}
-              <div style="font-size:9px;font-weight:700;color:#dc2626;margin-bottom:2px">
-                ⚠️ RELIEF DUE — Day {{ p.next_days }}{% if p.overdue_by %} (+{{ p.overdue_by }}d OT){% endif %}
-              </div>
-              {% endif %}
               <input type="text" name="name" class="form-control form-control-sm" value="{{ p.name }}"
                      required oninput="searchEmployee(this)" onfocus="focusEmployee(this)" autocomplete="off">
               <div class="emp-dropdown" style="display:none;position:absolute;background:white;border:1px solid #e2e8f0;border-radius:4px;z-index:999;min-width:220px;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
@@ -232,17 +210,10 @@
             <td><input type="checkbox" name="meal_l" value="{{ forloop.counter0 }}" {% if p.meal_l %}checked{% endif %}></td>
             <td><input type="checkbox" name="meal_d" value="{{ forloop.counter0 }}" {% if p.meal_d %}checked{% endif %}></td>
             <td><input type="checkbox" name="arrived" value="{{ forloop.counter0 }}"></td>
-            <td><input type="checkbox" name="left_site" value="{{ forloop.counter0 }}" {% if p.relief_due %}checked{% endif %}></td>
-            <td><input type="text" name="person_remarks" class="form-control form-control-sm"
-              value="{% if p.relief_due %}RELIEF DUE - Day {{ p.next_days }}{% if p.overdue_by %} (+{{ p.overdue_by }}d OT){% endif %}{% else %}{{ p.remarks }}{% endif %}"></td>
-            <td style="white-space:nowrap">
-              <button type="button" class="btn btn-outline-primary btn-sm py-0"
-                onclick="editRow(this)" title="Edit">&#9998;</button>
-              <button type="button" class="btn btn-outline-danger btn-sm py-0"
-                onclick="deleteRow(this)" title="Remove">&#10005;</button>
-            </td>
+            <td><input type="checkbox" name="left_site" value="{{ forloop.counter0 }}"></td>
+            <td><input type="text" name="person_remarks" class="form-control form-control-sm" value="{{ p.remarks }}"></td>
+            <td><button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="this.closest('tr').remove()">&#10005;</button></td>
           </tr>
-          {% endfor %}
           {% endfor %}
         </tbody>
       </table>
@@ -323,10 +294,7 @@ function addRow() {
     <td><input type="checkbox" name="arrived" value="${i}" checked></td>
     <td><input type="checkbox" name="left_site" value="${i}"></td>
     <td><input type="text" name="person_remarks" class="form-control form-control-sm"></td>
-    <td style="white-space:nowrap">
-      <button type="button" class="btn btn-outline-primary btn-sm py-0" onclick="editRow(this)" title="Edit">&#9998;</button>
-      <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteRow(this)" title="Remove">&#10005;</button>
-    </td>
+    <td><button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="this.closest('tr').remove()">&#10005;</button></td>
   `;
   tbody.appendChild(tr);
   // Scroll new row into view and focus name field
@@ -443,82 +411,6 @@ function apAddToTable() {
   row.scrollIntoView({behavior:'smooth', block:'nearest'});
   apClearForm();
   document.getElementById('apName').focus();
-}
-
-
-// ── Row Edit & Delete ──────────────────────────────────────────────────────
-function deleteRow(btn) {
-  const tr = btn.closest('tr');
-  tr.style.transition = 'opacity 0.2s';
-  tr.style.opacity = '0';
-  setTimeout(() => { tr.remove(); renumberRows(); }, 200);
-}
-
-function renumberRows() {
-  const rows = document.querySelectorAll('#personsTable tbody tr[data-row]');
-  rows.forEach((r, i) => {
-    const numCell = r.querySelector('td:first-child');
-    if (numCell) numCell.textContent = i + 1;
-  });
-}
-
-function editRow(btn) {
-  const tr = btn.closest('tr');
-  tr.setAttribute('data-editing', '1');
-
-  // Toggle all inputs/selects in row to enabled/visible
-  const inputs  = tr.querySelectorAll('input[type=text], input[type=date]');
-  const selects = tr.querySelectorAll('select');
-
-  // Highlight row
-  tr.style.background = '#eff6ff';
-  tr.style.outline    = '2px solid #2563eb';
-
-  // Make inputs clearly editable
-  inputs.forEach(inp => {
-    inp.style.background  = '#fff';
-    inp.style.border      = '1.5px solid #2563eb';
-    inp.style.borderRadius = '4px';
-  });
-  selects.forEach(sel => {
-    sel.style.border      = '1.5px solid #2563eb';
-    sel.style.borderRadius = '4px';
-  });
-
-  // Change Edit button to Save (tick)
-  btn.innerHTML   = '&#10003;';
-  btn.title       = 'Save changes';
-  btn.className   = 'btn btn-success btn-sm py-0';
-  btn.onclick     = function() { saveEditRow(this); };
-
-  // Focus the name field
-  const nameInp = tr.querySelector('[name=name]');
-  if (nameInp) { nameInp.focus(); nameInp.select(); }
-}
-
-function saveEditRow(btn) {
-  const tr = btn.closest('tr');
-  tr.removeAttribute('data-editing');
-
-  // Remove edit highlights
-  tr.style.background = tr.classList.contains('relief-row') ? '#fff0f0' : '';
-  tr.style.outline    = '';
-
-  const inputs  = tr.querySelectorAll('input[type=text], input[type=date]');
-  const selects = tr.querySelectorAll('select');
-  inputs.forEach(inp  => { inp.style.background = ''; inp.style.border = ''; });
-  selects.forEach(sel => { sel.style.border = ''; });
-
-  // Restore Edit button
-  btn.innerHTML = '&#9998;';
-  btn.title     = 'Edit';
-  btn.className = 'btn btn-outline-primary btn-sm py-0';
-  btn.onclick   = function() { editRow(this); };
-
-  // Flash green to confirm save
-  tr.style.transition = 'background 0.3s';
-  tr.style.background = '#f0fdf4';
-  setTimeout(() => { tr.style.background = ''; tr.style.transition = ''; }, 800);
 }
 
 function reloadForRig(rig) {

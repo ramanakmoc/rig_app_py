@@ -153,15 +153,6 @@ def pob_report(request):
         'chart_colors':    json.dumps(COLORS),
     })
 
-
-# Categories on 21-days-on / 21-days-off rotation
-ROTATION_CATEGORIES = {
-    'KSD_CREW', 'DAY_SHIFT_CREW', 'NIGHT_SHIFT_CREW',
-    'GENERAL_SHIFT_DAY_CREW', 'GENERAL_SHIFT_CREW',
-    'KSD_DRILLING_CREW',
-}
-ROTATION_DAYS = 21
-
 def _pob_quick_groups(persons):
     """
     Returns (groups, grand_total, night_on_site) where:
@@ -413,8 +404,6 @@ def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, s
         'shift_day': shift_day, 'shift_night': shift_night, 'shift_general': shift_general,
         'cat_groups': cat_groups or {},
         'company_name': 'KRISS DRILLING PVT. LTD.',
-        'rotation_cats': ROTATION_CATEGORIES,
-        'rotation_days': ROTATION_DAYS,
     }, request=request)
     pdf = HTML(string=html_str, base_url=request.build_absolute_uri('/')).write_pdf()
     fname = f'POB_{log.rig}_{log.date}.pdf'
@@ -463,16 +452,14 @@ def pob_day_detail(request, pk):
     return render(request, 'pob/day_detail.html', {
         'page_title':    f'POB — {log.rig} — {log.date}',
         'log':           log,
-        'categories':    shift_groups,
-        'cat_groups':    cat_groups,
+        'categories':    shift_groups,   # legacy key — shift view
+        'cat_groups':    cat_groups,     # new — category view
         'persons':       persons,
         'desigs':        POBDesignation.objects.filter(is_active=True),
         'companies':     POBCompany.objects.filter(is_active=True),
         'accomms':       POBAccommodation.objects.filter(is_active=True),
         'cat_choices':   _get_cat_choices(),
         'shift_choices': POBPerson.SHIFT_CHOICES,
-        'rotation_cats': ROTATION_CATEGORIES,
-        'rotation_days': ROTATION_DAYS,
     })
 
 
@@ -513,67 +500,33 @@ def pob_add(request):
 
     prev_rig  = request.GET.get('rig', rigs[0] if rigs else '')
     prev_date = request.GET.get('date', today)  # default to today so new entry date is pre-set
-    prev_persons        = []
-    rotation_due_count  = 0
+    prev_persons = []
     try:
         prev_log = POBDailyLog.objects.filter(
             rig=prev_rig, date__lt=prev_date
         ).order_by('-date').first()
         if prev_log:
-            raw_persons = list(prev_log.persons.filter(
+            prev_persons = list(prev_log.persons.filter(
                 left_site=False, is_active=True
             ).select_related('designation','company','accommodation','room_no').order_by('shift','sno'))
-
-            # ── Rotation logic ────────────────────────────────────────────
-            # Django templates block _underscore attrs, so store as public attrs
-            for p in raw_persons:
-                new_days = p.days_on_site + 1
-                p.next_days    = new_days
-                p.relief_due   = (p.category in ROTATION_CATEGORIES and new_days >= ROTATION_DAYS)
-                p.overdue_by   = max(0, new_days - ROTATION_DAYS) if p.relief_due else 0
-                if p.relief_due:
-                    rotation_due_count += 1
-
-            # ── Group prev_persons by category in master order ──────────
-            cat_choices_list = _get_cat_choices()
-            cat_label_map    = dict(cat_choices_list)
-            cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
-            _buckets = {}
-            for p in raw_persons:
-                key   = (p.category or 'OTHER').strip()
-                label = cat_label_map.get(key, key.replace('_',' ').title())
-                _buckets.setdefault(label, []).append(p)
-            # Sort groups by master order, persons within by name
-            def _grp_sort(item):
-                lbl = item[0]
-                k   = next((k for k,v in cat_label_map.items() if v==lbl), None)
-                return cat_order_map.get(k, 999)
-            prev_persons_grouped = dict(sorted(_buckets.items(), key=_grp_sort))
-            for grp in prev_persons_grouped.values():
-                grp.sort(key=lambda p: p.name)
-            # Flat list still needed for row numbering
-            prev_persons = [p for grp in prev_persons_grouped.values() for p in grp]
     except Exception:
         pass
 
     locations = WellLocation.objects.filter(status='Active').order_by('category','location')
     return render(request, 'pob/add.html', {
-        'page_title':        'Add POB Entry',
-        'rigs':              rigs,
-        'today':             today,
-        'default_date':      prev_date,
-        'prev_rig':          prev_rig,
-        'prev_persons':      prev_persons,
-        'rotation_due_count':rotation_due_count,
-        'rotation_days':     ROTATION_DAYS,
-        'prev_persons_grouped': locals().get('prev_persons_grouped', {}),
-        'categories':        _get_cat_choices(),
-        'shifts':            POBPerson.SHIFT_CHOICES,
-        'desigs':            desigs,
-        'companies':         companies,
-        'accomms':           accomms,
-        'rooms':             rooms,
-        'locations':         locations,
+        'page_title':   'Add POB Entry',
+        'rigs':         rigs,
+        'today':        today,
+        'default_date': prev_date,
+        'prev_rig':     prev_rig,
+        'prev_persons': prev_persons,
+        'categories':   _get_cat_choices(),
+        'shifts':       POBPerson.SHIFT_CHOICES,
+        'desigs':       desigs,
+        'companies':    companies,
+        'accomms':      accomms,
+        'rooms':        rooms,
+        'locations':    locations,
     })
 
 

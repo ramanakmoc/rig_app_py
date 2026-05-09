@@ -162,21 +162,15 @@
             <th style="width:55px">Arrived</th>
             <th style="width:40px">Left</th>
             <th style="min-width:100px">Remarks</th>
-            <th style="width:80px">Actions</th>
+            <th style="width:30px"></th>
           </tr>
         </thead>
         <tbody id="tbody">
-          {% for cat_label, cat_persons in prev_persons_grouped.items %}
-          <tr style="background:#0b3d6d">
-            <td colspan="18" style="padding:6px 12px;font-size:11px;font-weight:700;color:#fff;letter-spacing:0.5px;border-bottom:2px solid #1e5a9c">
-              &#127991; {{ cat_label }} &nbsp;<span style="background:rgba(255,255,255,0.2);padding:1px 7px;border-radius:8px;font-size:10px">{{ cat_persons|length }}</span>
-            </td>
-          </tr>
-          {% for p in cat_persons %}
+          {% for p in prev_persons %}
           {% if p.relief_due %}
-          <tr data-row="1" class="relief-row" style="background:#fff0f0;border-left:3px solid #dc2626">
+          <tr style="background:#fff0f0;border-left:3px solid #dc2626">
           {% else %}
-          <tr data-row="1">
+          <tr>
           {% endif %}
             <td>{{ forloop.counter }}</td>
             <td>
@@ -235,14 +229,8 @@
             <td><input type="checkbox" name="left_site" value="{{ forloop.counter0 }}" {% if p.relief_due %}checked{% endif %}></td>
             <td><input type="text" name="person_remarks" class="form-control form-control-sm"
               value="{% if p.relief_due %}RELIEF DUE - Day {{ p.next_days }}{% if p.overdue_by %} (+{{ p.overdue_by }}d OT){% endif %}{% else %}{{ p.remarks }}{% endif %}"></td>
-            <td style="white-space:nowrap">
-              <button type="button" class="btn btn-outline-primary btn-sm py-0"
-                onclick="editRow(this)" title="Edit">&#9998;</button>
-              <button type="button" class="btn btn-outline-danger btn-sm py-0"
-                onclick="deleteRow(this)" title="Remove">&#10005;</button>
-            </td>
+            <td><button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="this.closest('tr').remove()">&#10005;</button></td>
           </tr>
-          {% endfor %}
           {% endfor %}
         </tbody>
       </table>
@@ -323,10 +311,7 @@ function addRow() {
     <td><input type="checkbox" name="arrived" value="${i}" checked></td>
     <td><input type="checkbox" name="left_site" value="${i}"></td>
     <td><input type="text" name="person_remarks" class="form-control form-control-sm"></td>
-    <td style="white-space:nowrap">
-      <button type="button" class="btn btn-outline-primary btn-sm py-0" onclick="editRow(this)" title="Edit">&#9998;</button>
-      <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteRow(this)" title="Remove">&#10005;</button>
-    </td>
+    <td><button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="this.closest('tr').remove()">&#10005;</button></td>
   `;
   tbody.appendChild(tr);
   // Scroll new row into view and focus name field
@@ -443,82 +428,6 @@ function apAddToTable() {
   row.scrollIntoView({behavior:'smooth', block:'nearest'});
   apClearForm();
   document.getElementById('apName').focus();
-}
-
-
-// ── Row Edit & Delete ──────────────────────────────────────────────────────
-function deleteRow(btn) {
-  const tr = btn.closest('tr');
-  tr.style.transition = 'opacity 0.2s';
-  tr.style.opacity = '0';
-  setTimeout(() => { tr.remove(); renumberRows(); }, 200);
-}
-
-function renumberRows() {
-  const rows = document.querySelectorAll('#personsTable tbody tr[data-row]');
-  rows.forEach((r, i) => {
-    const numCell = r.querySelector('td:first-child');
-    if (numCell) numCell.textContent = i + 1;
-  });
-}
-
-function editRow(btn) {
-  const tr = btn.closest('tr');
-  tr.setAttribute('data-editing', '1');
-
-  // Toggle all inputs/selects in row to enabled/visible
-  const inputs  = tr.querySelectorAll('input[type=text], input[type=date]');
-  const selects = tr.querySelectorAll('select');
-
-  // Highlight row
-  tr.style.background = '#eff6ff';
-  tr.style.outline    = '2px solid #2563eb';
-
-  // Make inputs clearly editable
-  inputs.forEach(inp => {
-    inp.style.background  = '#fff';
-    inp.style.border      = '1.5px solid #2563eb';
-    inp.style.borderRadius = '4px';
-  });
-  selects.forEach(sel => {
-    sel.style.border      = '1.5px solid #2563eb';
-    sel.style.borderRadius = '4px';
-  });
-
-  // Change Edit button to Save (tick)
-  btn.innerHTML   = '&#10003;';
-  btn.title       = 'Save changes';
-  btn.className   = 'btn btn-success btn-sm py-0';
-  btn.onclick     = function() { saveEditRow(this); };
-
-  // Focus the name field
-  const nameInp = tr.querySelector('[name=name]');
-  if (nameInp) { nameInp.focus(); nameInp.select(); }
-}
-
-function saveEditRow(btn) {
-  const tr = btn.closest('tr');
-  tr.removeAttribute('data-editing');
-
-  // Remove edit highlights
-  tr.style.background = tr.classList.contains('relief-row') ? '#fff0f0' : '';
-  tr.style.outline    = '';
-
-  const inputs  = tr.querySelectorAll('input[type=text], input[type=date]');
-  const selects = tr.querySelectorAll('select');
-  inputs.forEach(inp  => { inp.style.background = ''; inp.style.border = ''; });
-  selects.forEach(sel => { sel.style.border = ''; });
-
-  // Restore Edit button
-  btn.innerHTML = '&#9998;';
-  btn.title     = 'Edit';
-  btn.className = 'btn btn-outline-primary btn-sm py-0';
-  btn.onclick   = function() { editRow(this); };
-
-  // Flash green to confirm save
-  tr.style.transition = 'background 0.3s';
-  tr.style.background = '#f0fdf4';
-  setTimeout(() => { tr.style.background = ''; tr.style.transition = ''; }, 800);
 }
 
 function reloadForRig(rig) {
