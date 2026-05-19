@@ -15,7 +15,7 @@ def role_required(*roles):
                 return redirect('login')
             try:
                 user_role = request.user.profile.role
-            except AttributeError:
+            except Exception:
                 messages.error(request, 'Access denied — no profile found.')
                 return redirect('dashboard')
             if user_role not in roles:
@@ -38,5 +38,13 @@ def get_user_rigs(request, all_rigs):
     """Return rigs the current user can access."""
     try:
         return request.user.profile.filter_rigs(all_rigs)
-    except AttributeError:
+    except Exception:
+        return all_rigs
+
+
+def get_user_rigs(request, all_rigs):
+    """Return rigs the current user can access."""
+    try:
+        return request.user.profile.filter_rigs(all_rigs)
+    except Exception:
         return all_rigs

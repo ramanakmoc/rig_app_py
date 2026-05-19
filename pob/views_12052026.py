@@ -4,11 +4,13 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count
+from django.db import transaction
 from django.http import JsonResponse
 from core.decorators import supervisor_required, admin_required
 from masters.models import Rig, WellLocation, WellLocation
 from .models import (POBDailyLog, POBPerson, POBDesignation,
-                     POBCompany, POBAccommodation, POBRoomNo, POBEmployee)
+                     POBCompany, POBAccommodation, POBRoomNo, POBEmployee,
+                     POBCategory)
 
 
 def _get_rigs():
@@ -21,6 +23,15 @@ def _get_user_rigs(request):
         return request.user.profile.filter_rigs(all_rigs)
     except Exception:
         return all_rigs
+
+
+def _get_cat_choices():
+    """Safe wrapper — falls back to hardcoded list if migration not yet applied."""
+    try:
+        choices = POBCategory.as_choices()
+        return choices if choices else POBPerson.CATEGORY_CHOICES
+    except Exception:
+        return POBPerson.CATEGORY_CHOICES
 
 def _pob_qs_filter(qs, request, rig_f, from_f, to_f, month_f):
     import calendar
@@ -143,25 +154,58 @@ def pob_report(request):
         'chart_colors':    json.dumps(COLORS),
     })
 
+
+# Categories on 21-days-on / 21-days-off rotation
+ROTATION_CATEGORIES = {
+    'KSD_CREW', 'DAY_SHIFT_CREW', 'NIGHT_SHIFT_CREW',
+    'GENERAL_SHIFT_DAY_CREW', 'GENERAL_SHIFT_CREW',
+    'KSD_DRILLING_CREW',
+}
+ROTATION_DAYS = 21
+
+def _pob_quick_groups(persons):
+    """
+    Returns (groups, grand_total, night_on_site) where:
+      groups        = [(company_name, count), ...]  sorted by count desc
+      grand_total   = total active persons
+      night_on_site = night shift persons not left site
+    """
+    from collections import defaultdict
+    company_counts = defaultdict(int)
+    for p in persons:
+        label = p.company.name if p.company else 'No Company'
+        company_counts[label] += 1
+    groups        = sorted(company_counts.items(), key=lambda x: -x[1])
+    grand_total   = sum(v for _, v in groups)
+    night_on_site = persons.filter(shift='N', left_site=False).count()
+    return groups, grand_total, night_on_site
+
+
 def pob_report_export(request):
     """PDF + Excel POB daily report."""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    rig    = request.GET.get('rig','').strip()
-    date   = request.GET.get('date','').strip()
     fmt    = request.GET.get('fmt','excel')  # excel or pdf
 
-    if not rig or not date:
-        messages.error(request, 'Rig and date required.')
-        return redirect('pob_report')
-
-    try:
-        log = POBDailyLog.objects.get(rig=rig, date=date)
-    except POBDailyLog.DoesNotExist:
-        messages.error(request, f'No POB log found for {rig} on {date}.')
-        return redirect('pob_report')
+    # Accept either ?log=<pk>  OR  ?rig=PPE-1&date=2026-05-01
+    log_pk = request.GET.get('log','').strip()
+    if log_pk:
+        log  = get_object_or_404(POBDailyLog, pk=log_pk)
+        rig  = log.rig
+        date = str(log.date)
+    else:
+        rig  = request.GET.get('rig','').strip()
+        date = request.GET.get('date','').strip()
+        if not rig or not date:
+            messages.error(request, 'Rig and date required.')
+            return redirect('pob_report')
+        try:
+            log = POBDailyLog.objects.get(rig=rig, date=date)
+        except POBDailyLog.DoesNotExist:
+            messages.error(request, f'No POB log found for {rig} on {date}.')
+            return redirect('pob_report')
 
     persons = log.persons.select_related('designation','company','accommodation','room_no').filter(is_active=True)
     groups, grand_total, night_on_site = _pob_quick_groups(persons)
@@ -171,8 +215,23 @@ def pob_report_export(request):
     shift_general = persons.filter(shift='G').count()
 
     if fmt == 'pdf':
+        # Build category groups for Report 3
+        cat_choices_list = _get_cat_choices()
+        cat_label_map    = dict(cat_choices_list)
+        cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
+        _cat_buckets     = {}
+        for p in persons:
+            key   = (p.category or 'OTHER').strip()
+            label = cat_label_map.get(key) or next(
+                (lbl for k, lbl in cat_choices_list if k.upper() == key.upper()), None
+            ) or key.replace('_', ' ').title()
+            _cat_buckets.setdefault(label, []).append(p)
+        def _cat_sort(item):
+            key_for = next((k for k, v in cat_label_map.items() if v == item[0]), None)
+            return cat_order_map.get(key_for, 999)
+        pdf_cat_groups = dict(sorted(_cat_buckets.items(), key=_cat_sort))
         return _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site,
-                               shift_day, shift_night, shift_general)
+                               shift_day, shift_night, shift_general, pdf_cat_groups)
 
     # ── EXCEL ──────────────────────────────────────────────────────────
     wb = openpyxl.Workbook()
@@ -345,7 +404,7 @@ def pob_report_export(request):
     return resp
 
 
-def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, shift_day=0, shift_night=0, shift_general=0):
+def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, shift_day=0, shift_night=0, shift_general=0, cat_groups=None):
     from django.template.loader import render_to_string
     from weasyprint import HTML
     from django.http import HttpResponse
@@ -353,7 +412,10 @@ def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, s
         'log': log, 'persons': persons, 'groups': groups,
         'grand_total': grand_total, 'night_on_site': night_on_site,
         'shift_day': shift_day, 'shift_night': shift_night, 'shift_general': shift_general,
+        'cat_groups': cat_groups or {},
         'company_name': 'KRISS DRILLING PVT. LTD.',
+        'rotation_cats': ROTATION_CATEGORIES,
+        'rotation_days': ROTATION_DAYS,
     }, request=request)
     pdf = HTML(string=html_str, base_url=request.build_absolute_uri('/')).write_pdf()
     fname = f'POB_{log.rig}_{log.date}.pdf'
@@ -366,22 +428,52 @@ def _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site, s
 def pob_day_detail(request, pk):
     log = get_object_or_404(POBDailyLog, pk=pk)
     persons = log.persons.select_related('designation','company','accommodation','room_no').order_by('shift','name')
-    shifts = {'Day': [], 'Night': [], 'General': []}
+
+    # ── Group by SHIFT ──────────────────────────────────────────────
+    shift_groups = {'Day': [], 'Night': [], 'General': []}
     for p in persons:
-        if p.shift == 'D':   shifts['Day'].append(p)
-        elif p.shift == 'N': shifts['Night'].append(p)
-        else:                shifts['General'].append(p)
-    categories = {k: v for k, v in shifts.items() if v}
+        if p.shift == 'D':   shift_groups['Day'].append(p)
+        elif p.shift == 'N': shift_groups['Night'].append(p)
+        else:                shift_groups['General'].append(p)
+    shift_groups = {k: v for k, v in shift_groups.items() if v}
+
+    # ── Group by CATEGORY ────────────────────────────────────────────
+    cat_choices_list = _get_cat_choices()                  # [(key, label), ...]
+    cat_label_map    = dict(cat_choices_list)              # {key: label}
+    cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
+    _cat_buckets     = {}
+    for p in persons:
+        key = (p.category or 'OTHER').strip()
+        # Try exact match first, then case-insensitive, then use key as label
+        if key in cat_label_map:
+            label = cat_label_map[key]
+        else:
+            # Legacy / unmatched — find by case-insensitive key match
+            matched = next((lbl for k, lbl in cat_choices_list if k.upper() == key.upper()), None)
+            label = matched if matched else key.replace('_', ' ').title()
+        if label not in _cat_buckets:
+            _cat_buckets[label] = []
+        _cat_buckets[label].append(p)
+    # Sort by defined master order; unmatched go to end
+    def _sort_key(item):
+        label = item[0]
+        key_for_label = next((k for k, v in cat_label_map.items() if v == label), None)
+        return cat_order_map.get(key_for_label, 999)
+    cat_groups = dict(sorted(_cat_buckets.items(), key=_sort_key))
+
     return render(request, 'pob/day_detail.html', {
-        'page_title': f'POB — {log.rig} — {log.date}',
-        'log':        log,
-        'categories': categories,
-        'persons':    persons,
-        'desigs':     POBDesignation.objects.filter(is_active=True),
-        'companies':  POBCompany.objects.filter(is_active=True),
-        'accomms':    POBAccommodation.objects.filter(is_active=True),
-        'cat_choices': POBPerson.CATEGORY_CHOICES,
+        'page_title':    f'POB — {log.rig} — {log.date}',
+        'log':           log,
+        'categories':    shift_groups,
+        'cat_groups':    cat_groups,
+        'persons':       persons,
+        'desigs':        POBDesignation.objects.filter(is_active=True),
+        'companies':     POBCompany.objects.filter(is_active=True),
+        'accomms':       POBAccommodation.objects.filter(is_active=True),
+        'cat_choices':   _get_cat_choices(),
         'shift_choices': POBPerson.SHIFT_CHOICES,
+        'rotation_cats': ROTATION_CATEGORIES,
+        'rotation_days': ROTATION_DAYS,
     })
 
 
@@ -394,7 +486,7 @@ def pob_add(request):
     desigs    = list(POBDesignation.objects.filter(is_active=True).values('id','name','category'))
     companies = list(POBCompany.objects.filter(is_active=True).values('id','name'))
     accomms   = list(POBAccommodation.objects.filter(is_active=True).values('id','name'))
-    rooms     = list(POBRoomNo.objects.filter(is_active=True).select_related('accommodation').values('id','room_no','accommodation__name'))
+    rooms     = list(POBRoomNo.objects.filter(is_active=True).select_related('accommodation').values('id','room_no','accommodation__id','accommodation__name'))
 
     if request.method == 'POST':
         rig      = request.POST.get('rig','').strip()
@@ -421,32 +513,74 @@ def pob_add(request):
         return redirect('pob_day_detail', pk=log.pk)
 
     prev_rig  = request.GET.get('rig', rigs[0] if rigs else '')
-    prev_date = request.GET.get('date', yesterday)
-    prev_persons = []
+    prev_date = request.GET.get('date', today)
+
+    # If a log already exists for this rig+date, redirect to day_detail
+    existing = POBDailyLog.objects.filter(rig=prev_rig, date=prev_date).first()
+    if existing:
+        return redirect('pob_day_detail', pk=existing.pk)
+
+    prev_persons        = []
+    rotation_due_count  = 0
     try:
         prev_log = POBDailyLog.objects.filter(
             rig=prev_rig, date__lt=prev_date
         ).order_by('-date').first()
         if prev_log:
-            prev_persons = list(prev_log.persons.filter(
+            raw_persons = list(prev_log.persons.filter(
                 left_site=False, is_active=True
             ).select_related('designation','company','accommodation','room_no').order_by('shift','sno'))
+
+            # ── Rotation logic ────────────────────────────────────────────
+            # Django templates block _underscore attrs, so store as public attrs
+            for p in raw_persons:
+                new_days = p.days_on_site + 1
+                p.next_days    = new_days
+                p.relief_due   = (p.category in ROTATION_CATEGORIES and new_days >= ROTATION_DAYS)
+                p.overdue_by   = max(0, new_days - ROTATION_DAYS) if p.relief_due else 0
+                if p.relief_due:
+                    rotation_due_count += 1
+
+            # ── Group prev_persons by category in master order ──────────
+            cat_choices_list = _get_cat_choices()
+            cat_label_map    = dict(cat_choices_list)
+            cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
+            _buckets = {}
+            for p in raw_persons:
+                key   = (p.category or 'OTHER').strip()
+                label = cat_label_map.get(key, key.replace('_',' ').title())
+                _buckets.setdefault(label, []).append(p)
+            # Sort groups by master order, persons within by name
+            def _grp_sort(item):
+                lbl = item[0]
+                k   = next((k for k,v in cat_label_map.items() if v==lbl), None)
+                return cat_order_map.get(k, 999)
+            prev_persons_grouped = dict(sorted(_buckets.items(), key=_grp_sort))
+            for grp in prev_persons_grouped.values():
+                grp.sort(key=lambda p: p.name)
+            # Flat list still needed for row numbering
+            prev_persons = [p for grp in prev_persons_grouped.values() for p in grp]
     except Exception:
         pass
 
+    locations = WellLocation.objects.filter(status='Active').order_by('category','location')
     return render(request, 'pob/add.html', {
-        'page_title':   'Add POB Entry',
-        'rigs':         rigs,
-        'today':        today,
-        'default_date': prev_date,
-        'prev_rig':     prev_rig,
-        'prev_persons': prev_persons,
-        'categories':   POBPerson.CATEGORY_CHOICES,
-        'shifts':       POBPerson.SHIFT_CHOICES,
-        'desigs':       desigs,
-        'companies':    companies,
-        'accomms':      accomms,
-        'rooms':        rooms,
+        'page_title':        'Add POB Entry',
+        'rigs':              rigs,
+        'today':             today,
+        'default_date':      prev_date,
+        'prev_rig':          prev_rig,
+        'prev_persons':      prev_persons,
+        'rotation_due_count':rotation_due_count,
+        'rotation_days':     ROTATION_DAYS,
+        'prev_persons_grouped': locals().get('prev_persons_grouped', {}),
+        'categories':        _get_cat_choices(),
+        'shifts':            POBPerson.SHIFT_CHOICES,
+        'desigs':            desigs,
+        'companies':         companies,
+        'accomms':           accomms,
+        'rooms':             rooms,
+        'locations':         locations,
     })
 
 
@@ -593,14 +727,88 @@ def pob_delete_log(request, pk):
     return redirect('pob_report')
 
 
+
+@login_required
+@supervisor_required
+def pob_carry_forward(request, pk):
+    """
+    Copy missing persons from the previous day's POB to this log.
+    Existing persons are kept untouched. Each copied person gets days_on_site + 1.
+    """
+    log = get_object_or_404(POBDailyLog, pk=pk)
+
+    if request.method != 'POST':
+        return redirect('pob_day_detail', pk=log.pk)
+
+    # Find previous day's log
+    prev_log = POBDailyLog.objects.filter(
+        rig=log.rig, date__lt=log.date
+    ).order_by('-date').first()
+
+    if not prev_log:
+        messages.warning(request, 'No previous day log found to carry forward from.')
+        return redirect('pob_day_detail', pk=log.pk)
+
+    # Existing names in current log
+    existing_names = set(p.name.upper().strip() for p in log.persons.all())
+
+    # Get next sno
+    from django.db.models import Max
+    next_sno = (log.persons.aggregate(m=Max('sno'))['m'] or 0) + 1
+
+    copied = 0
+    skipped = 0
+    with transaction.atomic():
+        for p in prev_log.persons.filter(left_site=False, is_active=True):
+            if p.name.upper().strip() in existing_names:
+                skipped += 1
+                continue
+            POBPerson.objects.create(
+                pob_log       = log,
+                sno           = next_sno,
+                name          = p.name,
+                category      = p.category,
+                shift         = p.shift,
+                designation   = p.designation,
+                company       = p.company,
+                accommodation = p.accommodation,
+                room_no       = p.room_no,
+                doj           = p.doj,
+                days_on_site  = p.days_on_site + 1,
+                mobile_no     = p.mobile_no,
+                meal_b        = p.meal_b,
+                meal_l        = p.meal_l,
+                meal_d        = p.meal_d,
+                arrived       = p.arrived,
+                left_site     = False,
+                remarks       = p.remarks or '',
+                is_active     = True,
+            )
+            next_sno += 1
+            copied += 1
+
+    if copied:
+        messages.success(request, f'Carried forward {copied} persons from {prev_log.date} ({skipped} already present).')
+    else:
+        messages.info(request, f'No new persons to carry forward (all {skipped} already present).')
+
+    return redirect('pob_day_detail', pk=log.pk)
+
 @login_required
 @supervisor_required
 def pob_masters(request):
+    try:
+        if not POBCategory.objects.exists():
+            POBCategory.seed_defaults()
+        pob_categories = POBCategory.objects.all()
+    except Exception:
+        pob_categories = []
     return render(request, 'pob/masters.html', {
-        'page_title': 'POB Masters',
-        'desigs':     POBDesignation.objects.all(),
-        'companies':  POBCompany.objects.all(),
-        'accomms':    POBAccommodation.objects.prefetch_related('rooms').all(),
+        'page_title':      'POB Masters',
+        'desigs':          POBDesignation.objects.all(),
+        'companies':       POBCompany.objects.all(),
+        'accomms':         POBAccommodation.objects.prefetch_related('rooms').all(),
+        'pob_categories':  pob_categories,
     })
 
 
@@ -634,6 +842,26 @@ def pob_master_save(request, master_type):
             obj=get_object_or_404(POBRoomNo,pk=pk); obj.room_no=room_no; obj.accommodation=accomm; obj.save()
         else:
             POBRoomNo.objects.get_or_create(accommodation=accomm,room_no=room_no)
+    elif master_type == 'category':
+        pk    = request.POST.get('pk','').strip()
+        label = request.POST.get('label','').strip()
+        key   = request.POST.get('key','').strip().upper().replace(' ','_')
+        order = int(request.POST.get('sort_order', 0) or 0)
+        active = request.POST.get('is_active','') == 'on'
+        if not label:
+            messages.error(request, 'Label is required.')
+            return redirect('pob_masters')
+        if pk:
+            obj = get_object_or_404(POBCategory, pk=pk)
+            obj.label = label; obj.sort_order = order; obj.is_active = active; obj.save()
+        else:
+            if not key:
+                import re
+                key = re.sub(r'[^A-Z0-9]+', '_', label.upper()).strip('_')[:50]
+            if POBCategory.objects.filter(key=key).exists():
+                messages.error(request, f'A category with key "{key}" already exists.')
+                return redirect('pob_masters')
+            POBCategory.objects.create(key=key, label=label, sort_order=order, is_active=True)
     messages.success(request, 'Saved.')
     return redirect('pob_masters')
 
@@ -642,7 +870,7 @@ def pob_master_save(request, master_type):
 @admin_required
 def pob_master_delete(request, master_type, pk):
     if request.method == 'POST':
-        model_map = {'designation':POBDesignation,'company':POBCompany,'accommodation':POBAccommodation,'room':POBRoomNo}
+        model_map = {'designation':POBDesignation,'company':POBCompany,'accommodation':POBAccommodation,'room':POBRoomNo,'category':POBCategory}
         model = model_map.get(master_type)
         if model:
             obj=get_object_or_404(model,pk=pk); name=str(obj); obj.delete()
@@ -671,6 +899,8 @@ def pob_employees(request):
     if desig_f: qs = qs.filter(designation_id=desig_f)
     if shift_f: qs = qs.filter(shift=shift_f)
     if cat_f:   qs = qs.filter(category=cat_f)
+    cat_choices = _get_cat_choices()
+    cat_dict    = dict(cat_choices)
     return render(request, 'pob/employees.html', {
         'page_title':  'POB Employee Master',
         'employees':   qs.order_by('rig','name'),
@@ -678,7 +908,8 @@ def pob_employees(request):
         'desigs':      POBDesignation.objects.filter(is_active=True),
         'rigs':        _get_rigs(),
         'filters':     {'rig':rig_f,'company':comp_f,'desig':desig_f,'shift':shift_f,'category':cat_f},
-        'cat_choices': POBPerson.CATEGORY_CHOICES,
+        'cat_choices': cat_choices,
+        'cat_dict':    cat_dict,
     })
 
 
@@ -687,25 +918,41 @@ def pob_employees(request):
 def pob_employee_save(request):
     if request.method != 'POST':
         return redirect('pob_employees')
-    pk       = request.POST.get('pk','').strip()
-    name     = request.POST.get('name','').strip()
-    rig      = request.POST.get('rig','').strip()
-    desig_id = request.POST.get('desig_id','').strip()
-    comp_id  = request.POST.get('company_id','').strip()
-    shift    = request.POST.get('shift','G')
-    category = request.POST.get('category','KSD_CREW')
-    mobile   = request.POST.get('mobile_no','').strip()
-    desig = POBDesignation.objects.get(pk=int(desig_id)) if desig_id else None
-    comp  = POBCompany.objects.get(pk=int(comp_id)) if comp_id else None
-    if pk:
-        obj = get_object_or_404(POBEmployee, pk=pk)
-        obj.name=name; obj.rig=rig; obj.designation=desig; obj.company=comp
-        obj.shift=shift; obj.category=category; obj.mobile_no=mobile; obj.save()
-        messages.success(request, f'{name} updated.')
-    else:
-        POBEmployee.objects.create(name=name,rig=rig,designation=desig,company=comp,
-                                   shift=shift,category=category,mobile_no=mobile)
-        messages.success(request, f'{name} added.')
+    try:
+        pk       = request.POST.get('pk','').strip()
+        name     = request.POST.get('name','').strip()
+        rig      = request.POST.get('rig','').strip()
+        desig_id = request.POST.get('desig_id','').strip()
+        comp_id  = request.POST.get('company_id','').strip()
+        shift    = request.POST.get('shift','G')
+        category = request.POST.get('category','KSD_CREW')
+        mobile   = request.POST.get('mobile_no','').strip()
+
+        if not name:
+            messages.error(request, 'Name is required.')
+            return redirect('pob_employees')
+
+        desig = POBDesignation.objects.get(pk=int(desig_id)) if desig_id else None
+        comp  = POBCompany.objects.get(pk=int(comp_id))      if comp_id  else None
+
+        if pk:
+            obj = get_object_or_404(POBEmployee, pk=pk)
+            obj.name=name; obj.rig=rig; obj.designation=desig; obj.company=comp
+            obj.shift=shift; obj.category=category; obj.mobile_no=mobile
+            obj.save()
+            messages.success(request, f'{name} updated.')
+        else:
+            # Check for duplicate (name + company unique_together)
+            if POBEmployee.objects.filter(name=name, company=comp).exists():
+                messages.error(request, f'Employee "{name}" already exists for this company.')
+                return redirect('pob_employees')
+            POBEmployee.objects.create(
+                name=name, rig=rig, designation=desig, company=comp,
+                shift=shift, category=category, mobile_no=mobile
+            )
+            messages.success(request, f'{name} added.')
+    except Exception as e:
+        messages.error(request, f'Error saving employee: {e}')
     return redirect('pob_employees')
 
 
@@ -730,10 +977,20 @@ def pob_api_employees(request):
     if rig:      qs = qs.filter(rig=rig)
     if category: qs = qs.filter(category=category)
     if rig and date:
-        already = list(POBPerson.objects.filter(
-            pob_log__rig=rig, pob_log__date=date
-        ).values_list('name', flat=True))
-        if already: qs = qs.exclude(name__in=already)
+        # Exclude by (name, company) pair so same-named people from different companies can still be added
+        already_pairs = set(
+            POBPerson.objects.filter(pob_log__rig=rig, pob_log__date=date)
+            .values_list('name', 'company_id')
+        )
+        if already_pairs:
+            from django.db.models import Q
+            excl = Q()
+            for _name, _comp_id in already_pairs:
+                if _comp_id:
+                    excl |= Q(name=_name, company_id=_comp_id)
+                else:
+                    excl |= Q(name=_name, company__isnull=True)
+            qs = qs.exclude(excl)
     qs = qs.order_by('name')[:50]
     data = [{'id':e.pk,'name':e.name,
              'desig_id':e.designation.pk if e.designation else '',

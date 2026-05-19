@@ -4,7 +4,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count
-from django.db import transaction
 from django.http import JsonResponse
 from core.decorators import supervisor_required, admin_required
 from masters.models import Rig, WellLocation
@@ -26,7 +25,7 @@ def _get_user_rigs(request):
 
 
 def _get_cat_choices():
-    """Safe wrapper — falls back to hardcoded list if migration not yet applied."""
+    """Safe wrapper � falls back to hardcoded list if migration not yet applied."""
     try:
         choices = POBCategory.as_choices()
         return choices if choices else POBPerson.CATEGORY_CHOICES
@@ -234,7 +233,7 @@ def pob_report_export(request):
         return _pob_pdf_report(request, log, persons, groups, grand_total, night_on_site,
                                shift_day, shift_night, shift_general, pdf_cat_groups)
 
-    # ── EXCEL ──────────────────────────────────────────────────────────────
+    # -- EXCEL ----------------------------------------------------------
     wb = openpyxl.Workbook()
 
     NAVY   = PatternFill('solid', fgColor='0B3D6D')
@@ -266,7 +265,7 @@ def pob_report_export(request):
         c.border = bdr
         return c
 
-    # ── SHEET 1: QUICK VIEW ──────────────────────────────────────────────
+    # -- SHEET 1: QUICK VIEW ------------------------------------------
     ws1 = wb.active
     ws1.title = 'POB Quick View'
     ws1.column_dimensions['A'].width = 35
@@ -302,13 +301,13 @@ def pob_report_export(request):
     c.fill = GREEN; c.font = Font(bold=True,color='FFFFFF',size=13)
     c.alignment = center; c.border = bdr
 
-    # ── SHEET 2: SHIFT SUMMARY ──────────────────────────────────────────
+    # -- SHEET 2: SHIFT SUMMARY ---------------------------------------
     ws2 = wb.create_sheet('Shift Summary')
     ws2.column_dimensions['A'].width = 20
     ws2.column_dimensions['B'].width = 15
 
     ws2.merge_cells('A1:B1')
-    t2 = ws2.cell(1,1, f'TOTAL PERSONS BY SHIFT — {rig}  |  {date}')
+    t2 = ws2.cell(1,1, f'TOTAL PERSONS BY SHIFT � {rig}  |  {date}')
     t2.fill = NAVY; t2.font = Font(bold=True,color='FFFFFF',size=12)
     t2.alignment = center; t2.border = bdr
 
@@ -329,7 +328,7 @@ def pob_report_export(request):
         c.fill = f; c.font = Font(bold=True, color='FFFFFF' if lbl=='TOTAL' else '1D4ED8', size=12)
         c.alignment = center; c.border = bdr
 
-    # ── SHEET 3: FULL PERSON LIST ────────────────────────────────────────
+    # -- SHEET 3: FULL PERSON LIST ------------------------------------
     ws3 = wb.create_sheet('Person List')
     ws3.freeze_panes = 'A3'
     col_w = [5,30,25,8,20,20,15,12,5,5,5,20]
@@ -342,7 +341,7 @@ def pob_report_export(request):
     # Title row
     ws3.insert_rows(1)
     ws3.merge_cells('A1:L1')
-    tt = ws3.cell(1,1, f'POB PERSONS — {rig}  |  DATE: {date}  |  TOTAL: {grand_total}')
+    tt = ws3.cell(1,1, f'POB PERSONS � {rig}  |  DATE: {date}  |  TOTAL: {grand_total}')
     tt.fill = NAVY; tt.font = Font(bold=True,color='FFFFFF',size=12)
     tt.alignment = center; tt.border = bdr
     ws3.row_dimensions[1].height = 28
@@ -356,7 +355,7 @@ def pob_report_export(request):
         vals = [
             idx-2, p.name, p.get_designation(), p.shift,
             p.get_company(), p.get_accommodation(), p.get_room_no(),
-            p.doj, '✓' if p.meal_b else '', '✓' if p.meal_l else '', '✓' if p.meal_d else '',
+            p.doj, '?' if p.meal_b else '', '?' if p.meal_l else '', '?' if p.meal_d else '',
             p.remarks or ''
         ]
         for col, val in enumerate(vals, 1):
@@ -367,11 +366,11 @@ def pob_report_export(request):
                 c.font = Font(bold=True, color={
                     'D':'1D4ED8','N':'7C3AED','G':'374151'}.get(val,'374151'))
 
-    # ── SHEET 4: NIGHT POB LIVE ──────────────────────────────────────────
+    # -- SHEET 4: NIGHT POB LIVE --------------------------------------
     ws4 = wb.create_sheet('Night POB Live')
     night_persons = persons.filter(shift='N', left_site=False).order_by('name')
     ws4.merge_cells('A1:J1')
-    tt4 = ws4.cell(1,1, f'TOTAL NIGHT POB LIVE — {rig}  |  {date}  |  COUNT: {night_on_site}')
+    tt4 = ws4.cell(1,1, f'TOTAL NIGHT POB LIVE � {rig}  |  {date}  |  COUNT: {night_on_site}')
     tt4.fill = PatternFill('solid',fgColor='7C3AED')
     tt4.font = Font(bold=True,color='FFFFFF',size=12)
     tt4.alignment = center; tt4.border = bdr
@@ -430,7 +429,7 @@ def pob_day_detail(request, pk):
     log = get_object_or_404(POBDailyLog, pk=pk)
     persons = log.persons.select_related('designation','company','accommodation','room_no').order_by('shift','name')
 
-    # ── Group by SHIFT ──────────────────────────────────────────────────
+    # -- Group by SHIFT ----------------------------------------------
     shift_groups = {'Day': [], 'Night': [], 'General': []}
     for p in persons:
         if p.shift == 'D':   shift_groups['Day'].append(p)
@@ -438,21 +437,24 @@ def pob_day_detail(request, pk):
         else:                shift_groups['General'].append(p)
     shift_groups = {k: v for k, v in shift_groups.items() if v}
 
-    # ── Group by CATEGORY ───────────────────────────────────────────────
+    # -- Group by CATEGORY --------------------------------------------
     cat_choices_list = _get_cat_choices()                  # [(key, label), ...]
     cat_label_map    = dict(cat_choices_list)              # {key: label}
     cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
     _cat_buckets     = {}
     for p in persons:
         key = (p.category or 'OTHER').strip()
+        # Try exact match first, then case-insensitive, then use key as label
         if key in cat_label_map:
             label = cat_label_map[key]
         else:
+            # Legacy / unmatched � find by case-insensitive key match
             matched = next((lbl for k, lbl in cat_choices_list if k.upper() == key.upper()), None)
             label = matched if matched else key.replace('_', ' ').title()
         if label not in _cat_buckets:
             _cat_buckets[label] = []
         _cat_buckets[label].append(p)
+    # Sort by defined master order; unmatched go to end
     def _sort_key(item):
         label = item[0]
         key_for_label = next((k for k, v in cat_label_map.items() if v == label), None)
@@ -460,7 +462,7 @@ def pob_day_detail(request, pk):
     cat_groups = dict(sorted(_cat_buckets.items(), key=_sort_key))
 
     return render(request, 'pob/day_detail.html', {
-        'page_title':    f'POB — {log.rig} — {log.date}',
+        'page_title':    f'POB � {log.rig} � {log.date}',
         'log':           log,
         'categories':    shift_groups,
         'cat_groups':    cat_groups,
@@ -507,17 +509,11 @@ def pob_add(request):
             lti_free_days=lti_days, remarks=remarks, created_by=request.user)
 
         _save_persons(request, log, date)
-        messages.success(request, f'POB saved — {log.persons.count()} persons.')
+        messages.success(request, f'POB saved � {log.persons.count()} persons.')
         return redirect('pob_day_detail', pk=log.pk)
 
     prev_rig  = request.GET.get('rig', rigs[0] if rigs else '')
-    prev_date = request.GET.get('date', today)
-
-    # If a log already exists for this rig+date, redirect to day_detail
-    existing = POBDailyLog.objects.filter(rig=prev_rig, date=prev_date).first()
-    if existing:
-        return redirect('pob_day_detail', pk=existing.pk)
-
+    prev_date = request.GET.get('date', today)  # default to today so new entry date is pre-set
     prev_persons        = []
     rotation_due_count  = 0
     try:
@@ -529,7 +525,8 @@ def pob_add(request):
                 left_site=False, is_active=True
             ).select_related('designation','company','accommodation','room_no').order_by('shift','sno'))
 
-            # ── Rotation logic ────────────────────────────────────────────
+            # -- Rotation logic --------------------------------------------
+            # Django templates block _underscore attrs, so store as public attrs
             for p in raw_persons:
                 new_days = p.days_on_site + 1
                 p.next_days    = new_days
@@ -538,7 +535,7 @@ def pob_add(request):
                 if p.relief_due:
                     rotation_due_count += 1
 
-            # ── Group prev_persons by category in master order ──────────
+            # -- Group prev_persons by category in master order ----------
             cat_choices_list = _get_cat_choices()
             cat_label_map    = dict(cat_choices_list)
             cat_order_map    = {key: i for i, (key, _) in enumerate(cat_choices_list)}
@@ -547,6 +544,7 @@ def pob_add(request):
                 key   = (p.category or 'OTHER').strip()
                 label = cat_label_map.get(key, key.replace('_',' ').title())
                 _buckets.setdefault(label, []).append(p)
+            # Sort groups by master order, persons within by name
             def _grp_sort(item):
                 lbl = item[0]
                 k   = next((k for k,v in cat_label_map.items() if v==lbl), None)
@@ -554,6 +552,7 @@ def pob_add(request):
             prev_persons_grouped = dict(sorted(_buckets.items(), key=_grp_sort))
             for grp in prev_persons_grouped.values():
                 grp.sort(key=lambda p: p.name)
+            # Flat list still needed for row numbering
             prev_persons = [p for grp in prev_persons_grouped.values() for p in grp]
     except Exception:
         pass
@@ -608,8 +607,7 @@ def _save_persons(request, log, date):
         if i < len(doj_list) and doj_list[i].strip():
             try: doj_val = datetime.date.fromisoformat(doj_list[i].strip())
             except ValueError: pass
-        # Guard against future DOJ or missing DOJ giving negative days
-        days = max(1, (date_obj - doj_val).days + 1) if doj_val and doj_val <= date_obj else 0
+        days = max(0, (date_obj - doj_val).days + 1) if doj_val and doj_val <= date_obj else 0
         desig_obj = None
         did = desig_ids[i].strip() if i < len(desig_ids) else ''
         if did:
@@ -665,195 +663,40 @@ def pob_add_person(request, log_pk):
 
 @login_required
 @supervisor_required
-def pob_inline_row_save(request):
-    """
-    AJAX endpoint called by the per-row Save button on the Add POB page.
-    Creates the POBDailyLog (if it doesn't exist) and creates/updates one person.
-    Returns JSON {ok, log_pk, person_pk}.
-    """
-    if request.method != 'POST':
-        return JsonResponse({'ok': False, 'error': 'POST required'}, status=405)
-
-    try:
-        rig  = request.POST.get('rig',  '').strip()
-        date = request.POST.get('date', '').strip()
-        if not rig or not date:
-            return JsonResponse({'ok': False, 'error': 'Rig and date are required'}, status=400)
-
-        name = request.POST.get('name', '').strip()
-        if not name:
-            return JsonResponse({'ok': False, 'error': 'Name is required'}, status=400)
-
-        # ── 1. Get or create the daily log ───────────────────────────
-        log, _created = POBDailyLog.objects.get_or_create(
-            rig=rig, date=date,
-            defaults={
-                'location':      request.POST.get('location', '').strip(),
-                'lti_free_days': int(request.POST.get('lti_free_days', 0) or 0),
-                'remarks':       request.POST.get('log_remarks', '').strip(),
-                'created_by':    request.user,
-            }
-        )
-
-        # ── 2. Resolve FK objects ────────────────────────────────────
-        def _get_obj(model, key):
-            val = request.POST.get(key, '').strip()
-            if val:
-                try:   return model.objects.get(pk=int(val))
-                except: pass
-            return None
-
-        desig_obj  = _get_obj(POBDesignation,   'desig_id')
-        comp_obj   = _get_obj(POBCompany,        'company_id')
-        accomm_obj = _get_obj(POBAccommodation,  'accommodation_id')
-        room_obj   = _get_obj(POBRoomNo,         'room_id')
-
-        doj_val  = None
-        doj_raw  = request.POST.get('doj', '').strip()
-        if doj_raw:
-            try: doj_val = datetime.date.fromisoformat(doj_raw)
-            except ValueError: pass
-
-        date_obj = datetime.date.fromisoformat(date)
-        days = max(0, (date_obj - doj_val).days + 1) if doj_val and doj_val <= date_obj else 0
-
-        # ── 3. Create or update the person ───────────────────────────
-        person_pk = request.POST.get('person_pk', '').strip()
-        if person_pk:
-            try:
-                p = POBPerson.objects.get(pk=int(person_pk), pob_log=log)
-                person_pk = str(p.pk)          # confirmed it exists
-            except POBPerson.DoesNotExist:
-                person_pk = ''                 # will create instead
-
-        if person_pk:
-            # UPDATE existing record
-            p.name          = name
-            p.category      = request.POST.get('category', p.category)
-            p.shift         = request.POST.get('shift', p.shift)
-            p.mobile_no     = request.POST.get('mobile_no', '').strip()
-            p.designation   = desig_obj
-            p.company       = comp_obj
-            p.accommodation = accomm_obj
-            p.room_no       = room_obj
-            p.doj           = doj_val
-            p.days_on_site  = days
-        else:
-            # CREATE new record
-            from django.db.models import Max
-            sno = (log.persons.aggregate(m=Max('sno'))['m'] or 0) + 1
-            p = POBPerson(
-                pob_log=log, sno=sno,
-                name=name,
-                category=request.POST.get('category', 'KSD_CREW'),
-                shift=request.POST.get('shift', 'G'),
-                mobile_no=request.POST.get('mobile_no', '').strip(),
-                designation=desig_obj,  designation_text='',
-                company=comp_obj,       company_text='',
-                accommodation=accomm_obj, accommodation_text='',
-                room_no=room_obj,       room_no_text='',
-                doj=doj_val, days_on_site=days,
-                is_active=True,
-            )
-
+def pob_edit_person(request, pk):
+    p = get_object_or_404(POBPerson, pk=pk)
+    if request.method == 'POST':
+        p.name      = request.POST.get('name', p.name).strip()
+        p.category  = request.POST.get('category', p.category)
+        p.shift     = request.POST.get('shift', 'G')
+        p.mobile_no = request.POST.get('mobile_no','').strip()
+        p.remarks   = request.POST.get('remarks','').strip()
         p.meal_b    = 'meal_b'    in request.POST
         p.meal_l    = 'meal_l'    in request.POST
         p.meal_d    = 'meal_d'    in request.POST
         p.arrived   = 'arrived'   in request.POST
         p.left_site = 'left_site' in request.POST
-        p.remarks   = request.POST.get('person_remarks', '').strip()
-        if p.arrived and p.left_site:
-            p.days_on_site = max(1, p.days_on_site)
+        p.is_active = 'is_active' in request.POST
+        did = request.POST.get('desig_id','').strip()
+        p.designation = POBDesignation.objects.get(pk=int(did)) if did else None
+        p.designation_text = request.POST.get('desig_text','').strip()
+        cid = request.POST.get('company_id','').strip()
+        p.company = POBCompany.objects.get(pk=int(cid)) if cid else None
+        p.company_text = request.POST.get('company_text','').strip()
+        aid = request.POST.get('accommodation_id','').strip()
+        p.accommodation = POBAccommodation.objects.get(pk=int(aid)) if aid else None
+        p.accommodation_text = request.POST.get('accommodation_text','').strip()
+        rid = request.POST.get('room_id','').strip()
+        p.room_no = POBRoomNo.objects.get(pk=int(rid)) if rid else None
+        p.room_no_text = request.POST.get('room_text','').strip()
+        doj_raw = request.POST.get('doj','').strip()
+        if doj_raw:
+            try:
+                p.doj = datetime.date.fromisoformat(doj_raw)
+                p.days_on_site = (p.pob_log.date - p.doj).days + 1
+            except ValueError: pass
         p.save()
-
-        return JsonResponse({'ok': True, 'log_pk': log.pk, 'person_pk': p.pk})
-
-    except Exception as e:
-        return JsonResponse({'ok': False, 'error': str(e)}, status=400)
-
-
-@login_required
-@supervisor_required
-def pob_edit_person(request, pk):
-    p = get_object_or_404(POBPerson, pk=pk)
-    is_ajax = request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest'
-
-    if request.method == 'POST':
-        try:
-            p.name      = request.POST.get('name', p.name).strip() or p.name
-            p.category  = request.POST.get('category', p.category)
-            p.shift     = request.POST.get('shift', 'G')
-            p.mobile_no = request.POST.get('mobile_no', '').strip()
-            p.remarks   = request.POST.get('remarks', '').strip()
-            p.meal_b    = 'meal_b'    in request.POST
-            p.meal_l    = 'meal_l'    in request.POST
-            p.meal_d    = 'meal_d'    in request.POST
-            p.arrived   = 'arrived'   in request.POST
-            p.left_site = 'left_site' in request.POST
-            p.is_active = 'is_active' in request.POST
-
-            did = request.POST.get('desig_id', '').strip()
-            if did:
-                try:
-                    p.designation = POBDesignation.objects.get(pk=int(did))
-                except (POBDesignation.DoesNotExist, ValueError):
-                    pass  # keep existing
-            else:
-                p.designation = None
-            p.designation_text = request.POST.get('desig_text', '').strip()
-
-            cid = request.POST.get('company_id', '').strip()
-            if cid:
-                try:
-                    p.company = POBCompany.objects.get(pk=int(cid))
-                except (POBCompany.DoesNotExist, ValueError):
-                    pass
-            else:
-                p.company = None
-            p.company_text = request.POST.get('company_text', '').strip()
-
-            aid = request.POST.get('accommodation_id', '').strip()
-            if aid:
-                try:
-                    p.accommodation = POBAccommodation.objects.get(pk=int(aid))
-                except (POBAccommodation.DoesNotExist, ValueError):
-                    pass
-            else:
-                p.accommodation = None
-            p.accommodation_text = request.POST.get('accommodation_text', '').strip()
-
-            rid = request.POST.get('room_id', '').strip()
-            if rid:
-                try:
-                    p.room_no = POBRoomNo.objects.get(pk=int(rid))
-                except (POBRoomNo.DoesNotExist, ValueError):
-                    pass
-            else:
-                p.room_no = None
-            p.room_no_text = request.POST.get('room_text', '').strip()
-
-            doj_raw = request.POST.get('doj', '').strip()
-            if doj_raw:
-                try:
-                    p.doj = datetime.date.fromisoformat(doj_raw)
-                    p.days_on_site = max(1, (p.pob_log.date - p.doj).days + 1)
-                except ValueError:
-                    pass
-            # Person arrived and left same day — count minimum 1 day
-            if p.arrived and p.left_site:
-                p.days_on_site = max(1, p.days_on_site)
-
-            p.save()
-
-            if is_ajax:
-                return JsonResponse({'ok': True, 'days_on_site': p.days_on_site})
-            messages.success(request, f'{p.name} updated.')
-
-        except Exception as e:
-            if is_ajax:
-                return JsonResponse({'ok': False, 'error': str(e)}, status=400)
-            messages.error(request, f'Error saving: {e}')
-
+        messages.success(request, f'{p.name} updated.')
     return redirect('pob_day_detail', pk=p.pob_log.pk)
 
 
@@ -877,73 +720,6 @@ def pob_delete_log(request, pk):
         messages.success(request, f'POB log for {info} deleted.')
     return redirect('pob_report')
 
-
-
-@login_required
-@supervisor_required
-def pob_carry_forward(request, pk):
-    """
-    Copy missing persons from the previous day's POB to this log.
-    Existing persons are kept untouched. Each copied person gets days_on_site + 1.
-    """
-    log = get_object_or_404(POBDailyLog, pk=pk)
-
-    if request.method != 'POST':
-        return redirect('pob_day_detail', pk=log.pk)
-
-    # Find previous day's log
-    prev_log = POBDailyLog.objects.filter(
-        rig=log.rig, date__lt=log.date
-    ).order_by('-date').first()
-
-    if not prev_log:
-        messages.warning(request, 'No previous day log found to carry forward from.')
-        return redirect('pob_day_detail', pk=log.pk)
-
-    # Existing names in current log
-    existing_names = set(p.name.upper().strip() for p in log.persons.all())
-
-    # Get next sno
-    from django.db.models import Max
-    next_sno = (log.persons.aggregate(m=Max('sno'))['m'] or 0) + 1
-
-    copied = 0
-    skipped = 0
-    with transaction.atomic():
-        for p in prev_log.persons.filter(left_site=False, is_active=True):
-            if p.name.upper().strip() in existing_names:
-                skipped += 1
-                continue
-            POBPerson.objects.create(
-                pob_log       = log,
-                sno           = next_sno,
-                name          = p.name,
-                category      = p.category,
-                shift         = p.shift,
-                designation   = p.designation,
-                company       = p.company,
-                accommodation = p.accommodation,
-                room_no       = p.room_no,
-                doj           = p.doj,
-                days_on_site  = p.days_on_site + 1,
-                mobile_no     = p.mobile_no,
-                meal_b        = p.meal_b,
-                meal_l        = p.meal_l,
-                meal_d        = p.meal_d,
-                arrived       = p.arrived,
-                left_site     = False,
-                remarks       = p.remarks or '',
-                is_active     = True,
-            )
-            next_sno += 1
-            copied += 1
-
-    if copied:
-        messages.success(request, f'Carried forward {copied} persons from {prev_log.date} ({skipped} already present).')
-    else:
-        messages.info(request, f'No new persons to carry forward (all {skipped} already present).')
-
-    return redirect('pob_day_detail', pk=log.pk)
 
 @login_required
 @supervisor_required
@@ -1128,6 +904,7 @@ def pob_api_employees(request):
     if rig:      qs = qs.filter(rig=rig)
     if category: qs = qs.filter(category=category)
     if rig and date:
+        # Exclude by (name, company) pair so same-named people from different companies can still be added
         already_pairs = set(
             POBPerson.objects.filter(pob_log__rig=rig, pob_log__date=date)
             .values_list('name', 'company_id')

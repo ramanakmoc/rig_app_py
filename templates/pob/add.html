@@ -49,6 +49,24 @@
     </div>
   </div>
 
+  <!-- STICKY SAVE BAR — always visible while scrolling -->
+  <div id="stickySaveBar" style="position:sticky;top:0;z-index:1030;background:#0b3d6d;
+       padding:8px 16px;border-radius:8px;margin-bottom:10px;
+       display:flex;justify-content:space-between;align-items:center;
+       box-shadow:0 2px 10px rgba(0,0,0,0.25)">
+    <span style="color:#fff;font-size:13px;font-weight:600">
+      &#128101; POB Entry &mdash;
+      <span id="stickyRigDate" style="color:#93c5fd"></span>
+      &nbsp;|&nbsp; <span id="stickyCount" style="color:#86efac">0 persons</span>
+    </span>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-success btn-sm px-3" style="font-size:13px;font-weight:700">
+        &#10003; Save POB Entry
+      </button>
+      <a href="{% url 'pob_report' %}" class="btn btn-outline-light btn-sm" style="font-size:12px">Cancel</a>
+    </div>
+  </div>
+
   <!-- PERSONS TABLE -->
   <div class="card-box mb-3">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -162,7 +180,7 @@
             <th style="width:55px">Arrived</th>
             <th style="width:40px">Left</th>
             <th style="min-width:100px">Remarks</th>
-            <th style="width:80px">Actions</th>
+            <th style="min-width:110px">Actions</th>
           </tr>
         </thead>
         <tbody id="tbody">
@@ -236,6 +254,12 @@
             <td><input type="text" name="person_remarks" class="form-control form-control-sm"
               value="{% if p.relief_due %}RELIEF DUE - Day {{ p.next_days }}{% if p.overdue_by %} (+{{ p.overdue_by }}d OT){% endif %}{% else %}{{ p.remarks }}{% endif %}"></td>
             <td style="white-space:nowrap">
+              <button type="button"
+                      class="btn btn-success btn-sm py-0 px-1 add-row-save-btn"
+                      onclick="saveAddRow(this)"
+                      title="Save this person"
+                      style="font-size:10px;min-width:52px;opacity:0.7"
+                      disabled>&#10003; Saved</button>
               <button type="button" class="btn btn-outline-primary btn-sm py-0"
                 onclick="editRow(this)" title="Edit">&#9998;</button>
               <button type="button" class="btn btn-outline-danger btn-sm py-0"
@@ -258,6 +282,173 @@
 {% block extra_js %}
 <script>
 let rowCount = {{ prev_persons|length }};
+
+// ── Sticky bar: show rig, date, person count ───────────────────────
+function updateStickyBar() {
+  const rig  = document.getElementById('rigSelect')  ? document.getElementById('rigSelect').value  : '{{ prev_rig }}';
+  const date = document.getElementById('dateInput')  ? document.getElementById('dateInput').value  : '{{ default_date }}';
+  // Format date as DD-MM-YYYY
+  let fmtDate = date;
+  if (date && date.includes('-') && date.length === 10) {
+    const [y, m, d] = date.split('-');
+    fmtDate = `${d}-${m}-${y}`;
+  }
+  const rows = document.querySelectorAll('#tbody tr[data-row]').length;
+  const el   = document.getElementById('stickyRigDate');
+  const cnt  = document.getElementById('stickyCount');
+  if (el)  el.textContent  = `${rig}  —  ${fmtDate}`;
+  if (cnt) cnt.textContent = `${rows} person${rows !== 1 ? 's' : ''}`;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  updateStickyBar();
+  const rigSel  = document.getElementById('rigSelect');
+  const dateInp = document.getElementById('dateInput');
+  if (rigSel)  rigSel.addEventListener('change',  updateStickyBar);
+  if (dateInp) dateInp.addEventListener('change', updateStickyBar);
+  // Re-count persons when rows are added/removed
+  const tbodyEl = document.getElementById('tbody');
+  if (tbodyEl) new MutationObserver(updateStickyBar).observe(tbodyEl, { childList: true });
+});
+
+// ── Per-row dirty tracking: enable Save btn when user changes anything ──
+function markAddDirty(el) {
+  const tr  = el.closest('tr');
+  if (!tr) return;
+  const btn = tr.querySelector('.add-row-save-btn');
+  if (btn && btn.disabled) {
+    btn.disabled      = false;
+    btn.innerHTML     = '&#10003; Save';
+    btn.className     = 'btn btn-success btn-sm py-0 px-1 add-row-save-btn';
+    btn.style.opacity = '';
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  // Attach dirty listeners to every input/select/checkbox in each row
+  document.querySelectorAll('#tbody tr[data-row]').forEach(tr => {
+    tr.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('change', () => markAddDirty(el));
+      el.addEventListener('input',  () => markAddDirty(el));
+    });
+  });
+  // Also update sticky bar log_pk link after first save
+});
+
+// ── Per-row AJAX Save (Add page) ──────────────────────────────────────
+let _addLogPk = null;  // set after first per-row save
+
+async function saveAddRow(btn) {
+  const tr = btn.closest('tr');
+  if (!tr) return;
+
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+  // Header fields
+  fd.append('rig',           document.getElementById('rigSelect')?.value || '');
+  fd.append('date',          document.getElementById('dateInput')?.value || '');
+  fd.append('location',      document.querySelector('select[name="location"]')?.value || '');
+  fd.append('lti_free_days', document.querySelector('input[name="lti_free_days"]')?.value || '0');
+  fd.append('log_remarks',   document.querySelector('input[name="remarks"]')?.value || '');
+
+  // Person fields from this row
+  fd.append('name',             tr.querySelector('input[name="name"]')?.value   || '');
+  fd.append('category',         tr.querySelector('select[name="category"]')?.value || 'KSD_CREW');
+  fd.append('shift',            tr.querySelector('select[name="shift"]')?.value || 'G');
+  fd.append('desig_id',         tr.querySelector('select[name="desig_id"]')?.value || '');
+  fd.append('company_id',       tr.querySelector('select[name="company_id"]')?.value || '');
+  fd.append('accommodation_id', tr.querySelector('select[name="accommodation_id"]')?.value || '');
+  fd.append('room_id',          tr.querySelector('select[name="room_id"]')?.value || '');
+  fd.append('doj',              tr.querySelector('input[name="doj"]')?.value || '');
+  fd.append('mobile_no',        tr.querySelector('input[name="mobile_no"]')?.value || '');
+  fd.append('person_remarks',   tr.querySelector('input[name="person_remarks"]')?.value || '');
+
+  if (tr.querySelector('input[name="meal_b"]')?.checked)    fd.append('meal_b',    '1');
+  if (tr.querySelector('input[name="meal_l"]')?.checked)    fd.append('meal_l',    '1');
+  if (tr.querySelector('input[name="meal_d"]')?.checked)    fd.append('meal_d',    '1');
+  if (tr.querySelector('input[name="arrived"]')?.checked)   fd.append('arrived',   '1');
+  if (tr.querySelector('input[name="left_site"]')?.checked) fd.append('left_site', '1');
+
+  // Re-use person_pk if already saved before
+  if (tr.dataset.personPk) fd.append('person_pk', tr.dataset.personPk);
+
+  // Visual: spinner
+  const origHtml  = btn.innerHTML;
+  const origClass = btn.className;
+  btn.disabled    = true;
+  btn.innerHTML   = '<span class="spinner-border spinner-border-sm" style="width:10px;height:10px"></span>';
+
+  try {
+    const resp = await fetch('{% url "pob_inline_row_save" %}', {
+      method: 'POST', body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+      tr.dataset.personPk = data.person_pk;
+      _addLogPk = data.log_pk;
+
+      // Update sticky bar to show "View Day Detail" link
+      _updateStickyAfterSave(data.log_pk);
+
+      btn.innerHTML     = '&#10003; Saved';
+      btn.className     = 'btn btn-secondary btn-sm py-0 px-1 add-row-save-btn';
+      btn.style.opacity = '0.7';
+      btn.disabled      = true;
+      showAddToast('Saved');
+
+      // Re-attach dirty listener so future edits re-enable the button
+      tr.querySelectorAll('input, select').forEach(el => {
+        el.addEventListener('change', () => markAddDirty(el), { once: true });
+        el.addEventListener('input',  () => markAddDirty(el), { once: true });
+      });
+    } else {
+      throw new Error(data.error || 'Save failed');
+    }
+  } catch (err) {
+    btn.innerHTML = '&#10007; Error';
+    btn.className = 'btn btn-danger btn-sm py-0 px-1 add-row-save-btn';
+    btn.disabled  = false;
+    btn.style.opacity = '';
+    showAddToast('Error: ' + err.message, true);
+    setTimeout(() => { btn.innerHTML = origHtml; btn.className = origClass; }, 2500);
+  }
+}
+
+function _updateStickyAfterSave(logPk) {
+  const bar   = document.getElementById('stickySaveBar');
+  const exist = document.getElementById('stickyViewBtn');
+  if (bar && !exist) {
+    const viewBtn = document.createElement('a');
+    viewBtn.id        = 'stickyViewBtn';
+    viewBtn.href      = `/pob/${logPk}/`;
+    viewBtn.className = 'btn btn-outline-light btn-sm';
+    viewBtn.style.fontSize = '12px';
+    viewBtn.textContent    = '📋 View Day Detail';
+    bar.querySelector('.d-flex').prepend(viewBtn);
+  }
+}
+
+// ── Toast for add page ────────────────────────────────────────────────
+function showAddToast(msg, isError) {
+  let t = document.getElementById('addPageToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'addPageToast';
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,0.2);transition:opacity 0.3s';
+    document.body.appendChild(t);
+  }
+  t.textContent        = isError ? '✗ ' + msg : '✓ ' + msg;
+  t.style.background   = isError ? '#dc2626' : '#15803d';
+  t.style.color        = '#fff';
+  t.style.display      = 'block';
+  t.style.opacity      = '1';
+  clearTimeout(window._addToastTimer);
+  window._addToastTimer = setTimeout(() => {
+    t.style.opacity = '0';
+    setTimeout(() => { t.style.display = 'none'; }, 350);
+  }, 2200);
+}
 
 // Pass master data to JS
 const desigs    = [{% for d in desigs %}{"id":{{ d.id }},"name":"{{ d.name }}","cat":"{{ d.category }}"},{% endfor %}];
@@ -293,9 +484,10 @@ function makeCatOpts(selVal) {
 }
 
 function loadRowRooms(sel) {
-  const row = sel.closest('tr');
+  const row     = sel.closest('tr');
   const roomSel = row.querySelector('.room-sel');
-  roomSel.innerHTML = makeRoomOpts(sel.value, '');
+  const keepRoom = roomSel.value;          // preserve current selection before wiping options
+  roomSel.innerHTML = makeRoomOpts(sel.value, keepRoom);
 }
 
 function addRow() {
@@ -324,11 +516,21 @@ function addRow() {
     <td><input type="checkbox" name="left_site" value="${i}"></td>
     <td><input type="text" name="person_remarks" class="form-control form-control-sm"></td>
     <td style="white-space:nowrap">
+      <button type="button"
+              class="btn btn-success btn-sm py-0 px-1 add-row-save-btn"
+              onclick="saveAddRow(this)"
+              title="Save this person"
+              style="font-size:10px;min-width:52px">&#10003; Save</button>
       <button type="button" class="btn btn-outline-primary btn-sm py-0" onclick="editRow(this)" title="Edit">&#9998;</button>
       <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteRow(this)" title="Remove">&#10005;</button>
     </td>
   `;
   tbody.appendChild(tr);
+  // Wire dirty listeners for new row
+  tr.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('change', () => markAddDirty(el));
+    el.addEventListener('input',  () => markAddDirty(el));
+  });
   // Scroll new row into view and focus name field
   tr.scrollIntoView({behavior: 'smooth', block: 'center'});
   setTimeout(() => tr.querySelector('[name=name]').focus(), 300);

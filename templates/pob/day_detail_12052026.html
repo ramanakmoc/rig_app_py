@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128101; POB — {{ log.rig }} — {{ log.date }}</h3>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'pob_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; Back</a>
+    <a href="{% url 'pob_report_export' %}?log={{ log.pk }}&fmt=excel"
+       class="btn btn-outline-success btn-sm" title="Download Excel">&#x1F4C5; Excel</a>
+    <a href="{% url 'pob_report_export' %}?log={{ log.pk }}&fmt=pdf"
+       class="btn btn-outline-danger btn-sm" title="Download PDF">&#x1F4C4; PDF</a>
+  </div>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-md-2 col-4"><div class="stat-card blue"><h6>Total POB</h6><h2>{{ log.total_pob }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card green"><h6>Live on Site</h6><h2>{{ log.day_pob_live }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card amber"><h6>LTI Free Days</h6><h2>{{ log.lti_free_days }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card blue"><h6>Breakfast</h6><h2>{{ log.meal_breakfast }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card green"><h6>Lunch</h6><h2>{{ log.meal_lunch }}</h2></div></div>
+  <div class="col-md-2 col-4"><div class="stat-card red"><h6>Dinner</h6><h2>{{ log.meal_dinner }}</h2></div></div>
+</div>
+
+<!-- VIEW TOGGLE -->
+<div class="d-flex gap-2 mb-3 align-items-center">
+  <span style="font-size:12px;color:#64748b;font-weight:600">Group by:</span>
+  <button id="btnShiftView" onclick="setView('shift')"
+    class="btn btn-sm btn-primary" style="font-size:12px">&#9728; Shift</button>
+  <button id="btnCatView" onclick="setView('category')"
+    class="btn btn-sm btn-outline-secondary" style="font-size:12px">&#127991; Category</button>
+</div>
+
+{% if request.user.profile.role != 'viewer' %}
+<div class="card-box mb-3 py-2">
+  <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#addPersonForm">&#10010; Add Person</button>
+  <form method="POST" action="{% url 'pob_carry_forward' log.pk %}" style="display:inline" onsubmit="return confirm('Copy missing persons from previous day to this log?');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-warning btn-sm" title="Copy missing persons from previous day">&#128257; Carry Forward Missing</button>
+  </form>
+  <div class="collapse mt-3" id="addPersonForm">
+    <form method="POST" action="{% url 'pob_add_person' log.pk %}">
+      {% csrf_token %}
+      <div class="row g-2">
+
+        <div class="col-md-2">
+          <label class="form-label" style="font-size:11px;color:#64748b">Category</label>
+          <select name="category" id="addCatSel" class="form-select form-select-sm" onchange="detailSearchEmployee(document.getElementById('addNameInp'))">
+            {% for val, label in cat_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-3" style="position:relative">
+          <label class="form-label" style="font-size:11px;color:#64748b">Name *</label>
+          <input type="text" name="name" id="addNameInp" class="form-control form-control-sm"
+                 placeholder="Type or select from master"
+                 oninput="detailSearchEmployee(this)"
+                 onfocus="detailFocusEmployee(this)"
+                 autocomplete="off" required>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label" style="font-size:11px;color:#64748b">Designation</label>
+          <select name="desig_id" id="addDesigSel" class="form-select form-select-sm">
+            <option value="">-- Select --</option>
+            {% for d in desigs %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-1">
+          <label class="form-label" style="font-size:11px;color:#64748b">Shift</label>
+          <select name="shift" id="addShiftSel" class="form-select form-select-sm">
+            <option value="D">Day</option><option value="N">Night</option><option value="G" selected>G</option>
+          </select>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label" style="font-size:11px;color:#64748b">Company</label>
+          <select name="company_id" id="addCompSel" class="form-select form-select-sm">
+            <option value="">-- Select --</option>
+            {% for c in companies %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label" style="font-size:11px;color:#64748b">Accommodation</label>
+          <select name="accommodation_id" id="addAccommSel" class="form-select form-select-sm" onchange="detailLoadRooms(this.value)">
+            <option value="">-- Select --</option>
+            {% for a in accomms %}<option value="{{ a.pk }}">{{ a.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label" style="font-size:11px;color:#64748b">Room No</label>
+          <select name="room_id" id="addRoomSel" class="form-select form-select-sm">
+            <option value="">-- Room --</option>
+          </select>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label" style="font-size:11px;color:#64748b">Date of Joining</label>
+          <input type="date" name="doj" class="form-control form-control-sm">
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label" style="font-size:11px;color:#64748b">Mobile</label>
+          <input type="text" name="mobile_no" id="addMobileSel" class="form-control form-control-sm" placeholder="Mobile no">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label" style="font-size:11px;color:#64748b">Meals & Status</label>
+          <div class="d-flex gap-3 flex-wrap" style="padding-top:4px">
+            <label style="font-size:12px"><input type="checkbox" name="meal_b" value="0" checked> B</label>
+            <label style="font-size:12px"><input type="checkbox" name="meal_l" value="0" checked> L</label>
+            <label style="font-size:12px"><input type="checkbox" name="meal_d" value="0" checked> D</label>
+            <label style="font-size:12px"><input type="checkbox" name="arrived" value="0"> Arrived</label>
+          </div>
+        </div>
+
+        <div class="col-md-1 d-flex align-items-end">
+          <button type="submit" class="btn btn-success btn-sm w-100">Save</button>
+        </div>
+
+      </div><!-- end row -->
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div id="shiftView">
+{% for cat_name, persons in categories.items %}
+<div class="card-box mb-3">
+  <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+    <span>
+      {% if cat_name == 'Day' %}&#9728; DAY SHIFT{% elif cat_name == 'Night' %}&#9790; NIGHT SHIFT{% else %}&#9651; GENERAL SHIFT{% endif %}
+    </span>
+    <span style="background:{% if cat_name == 'Day' %}#1d4ed8{% elif cat_name == 'Night' %}#7c3aed{% else %}#475569{% endif %};color:white;padding:2px 10px;border-radius:12px;font-size:11px">{{ persons|length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table-clean" style="font-size:11px">
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Designation</th><th>Sh</th><th>Company</th><th>Accommodation</th><th>Room</th><th>DOJ</th><th>Days</th><th>Mobile</th><th>Meals</th><th>Status</th><th>Remarks</th>
+        {% if request.user.profile.role != 'viewer' %}<th>Actions</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for p in persons %}
+        <tr {% if p.left_site %}style="opacity:0.45;text-decoration:line-through"{% elif p.arrived %}style="background:#f0fdf4"{% endif %}>
+          <td>{{ forloop.counter }}</td>
+          <td style="font-weight:600;white-space:nowrap">{{ p.name }}</td>
+          <td>{{ p.get_designation|default:"—" }}</td>
+          <td><span style="background:{% if p.shift == 'D' %}#dbeafe;color:#1d4ed8{% elif p.shift == 'N' %}#f3e8ff;color:#7c3aed{% else %}#f1f5f9;color:#475569{% endif %};padding:1px 5px;border-radius:6px;font-size:10px;font-weight:700">{{ p.shift|default:"G" }}</span></td>
+          <td>{{ p.get_company|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.get_accommodation|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.get_room_no|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.doj|date:"d M y"|default:"—" }}</td>
+          <td style="font-weight:700;color:#1d4ed8">{{ p.days_on_site }}</td>
+          <td style="font-size:10px">{{ p.mobile_no|default:"—" }}</td>
+          <td>
+            {% if p.meal_b %}<span style="background:#dbeafe;color:#1d4ed8;padding:1px 3px;border-radius:3px;font-size:10px">B</span>{% endif %}
+            {% if p.meal_l %}<span style="background:#dcfce7;color:#15803d;padding:1px 3px;border-radius:3px;font-size:10px">L</span>{% endif %}
+            {% if p.meal_d %}<span style="background:#fee2e2;color:#991b1b;padding:1px 3px;border-radius:3px;font-size:10px">D</span>{% endif %}
+          </td>
+          <td>
+            {% if p.left_site %}<span style="background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:8px;font-size:10px">LEFT</span>
+            {% elif p.arrived %}<span style="background:#dcfce7;color:#15803d;padding:1px 5px;border-radius:8px;font-size:10px">ARRIVED</span>
+            {% else %}<span style="background:#f1f5f9;color:#475569;padding:1px 5px;border-radius:8px;font-size:10px">ON SITE</span>{% endif %}
+          </td>
+          <td style="font-size:10px;color:#64748b;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.remarks|default:"—" }}</td>
+          {% if request.user.profile.role != 'viewer' %}
+          <td style="white-space:nowrap">
+            <button type="button" class="btn btn-outline-primary btn-sm py-0"
+              onclick="openEdit({{ p.pk }},'{{ p.name|escapejs }}','{{ p.category }}','{{ p.shift }}',
+                {% if p.designation %}{{ p.designation.pk }}{% else %}0{% endif %},'{{ p.get_designation|escapejs }}',
+                {% if p.company %}{{ p.company.pk }}{% else %}0{% endif %},'{{ p.get_company|escapejs }}',
+                {% if p.accommodation %}{{ p.accommodation.pk }}{% else %}0{% endif %},'{{ p.get_accommodation|escapejs }}',
+                {% if p.room_no %}{{ p.room_no.pk }}{% else %}0{% endif %},'{{ p.get_room_no|escapejs }}',
+                '{{ p.doj|date:"Y-m-d"|default:"" }}','{{ p.mobile_no }}',
+                {{ p.meal_b|lower }},{{ p.meal_l|lower }},{{ p.meal_d|lower }},
+                {{ p.arrived|lower }},{{ p.left_site|lower }},{{ p.is_active|lower }},
+                '{{ p.remarks|escapejs }}')">Edit</button>
+            {% if request.user.profile.role == 'admin' %}
+            <form method="POST" action="{% url 'pob_delete_person' p.pk %}" style="display:inline"
+                  onsubmit="return confirm('Remove {{ p.name }}?')">
+              {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% empty %}
+<div class="card-box text-center py-4 text-muted">No persons recorded.</div>
+{% endfor %}
+</div><!-- end #shiftView -->
+
+<!-- CATEGORY VIEW -->
+<div id="categoryView" style="display:none">
+{% for cat_name, persons in cat_groups.items %}
+<div class="card-box mb-3">
+  <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+    <span>&#127991; {{ cat_name }}</span>
+    <span style="background:#0f766e;color:white;padding:2px 10px;border-radius:12px;font-size:11px">{{ persons|length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table-clean" style="font-size:11px">
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Designation</th><th>Sh</th><th>Company</th><th>Accommodation</th><th>Room</th><th>DOJ</th><th>Days</th><th>Mobile</th><th>Meals</th><th>Status</th><th>Remarks</th>
+        {% if request.user.profile.role != 'viewer' %}<th>Actions</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for p in persons %}
+        <tr {% if p.left_site %}style="opacity:0.45;text-decoration:line-through"{% elif p.arrived %}style="background:#f0fdf4"{% endif %}>
+          <td>{{ forloop.counter }}</td>
+          <td style="font-weight:600;white-space:nowrap">{{ p.name }}</td>
+          <td>{{ p.get_designation|default:"—" }}</td>
+          <td><span style="background:{% if p.shift == 'D' %}#dbeafe;color:#1d4ed8{% elif p.shift == 'N' %}#f3e8ff;color:#7c3aed{% else %}#f1f5f9;color:#475569{% endif %};padding:1px 5px;border-radius:6px;font-size:10px;font-weight:700">{{ p.shift|default:"G" }}</span></td>
+          <td>{{ p.get_company|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.get_accommodation|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.get_room_no|default:"—" }}</td>
+          <td style="font-size:10px">{{ p.doj|date:"d M y"|default:"—" }}</td>
+          <td style="font-weight:700;color:#1d4ed8">{{ p.days_on_site }}</td>
+          <td style="font-size:10px">{{ p.mobile_no|default:"—" }}</td>
+          <td>
+            {% if p.meal_b %}<span style="background:#dbeafe;color:#1d4ed8;padding:1px 3px;border-radius:3px;font-size:10px">B</span>{% endif %}
+            {% if p.meal_l %}<span style="background:#dcfce7;color:#15803d;padding:1px 3px;border-radius:3px;font-size:10px">L</span>{% endif %}
+            {% if p.meal_d %}<span style="background:#fee2e2;color:#991b1b;padding:1px 3px;border-radius:3px;font-size:10px">D</span>{% endif %}
+          </td>
+          <td>
+            {% if p.left_site %}<span style="background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:8px;font-size:10px">LEFT</span>
+            {% elif p.arrived %}<span style="background:#dcfce7;color:#15803d;padding:1px 5px;border-radius:8px;font-size:10px">ARRIVED</span>
+            {% else %}<span style="background:#f1f5f9;color:#475569;padding:1px 5px;border-radius:8px;font-size:10px">ON SITE</span>{% endif %}
+          </td>
+          <td style="font-size:10px;color:#64748b;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.remarks|default:"—" }}</td>
+          {% if request.user.profile.role != 'viewer' %}
+          <td style="white-space:nowrap">
+            <button type="button" class="btn btn-outline-primary btn-sm py-0"
+              onclick="openEdit({{ p.pk }},'{{ p.name|escapejs }}','{{ p.category }}','{{ p.shift }}',
+                {% if p.designation %}{{ p.designation.pk }}{% else %}0{% endif %},'{{ p.get_designation|escapejs }}',
+                {% if p.company %}{{ p.company.pk }}{% else %}0{% endif %},'{{ p.get_company|escapejs }}',
+                {% if p.accommodation %}{{ p.accommodation.pk }}{% else %}0{% endif %},'{{ p.get_accommodation|escapejs }}',
+                {% if p.room_no %}{{ p.room_no.pk }}{% else %}0{% endif %},'{{ p.get_room_no|escapejs }}',
+                '{{ p.doj|date:"Y-m-d"|default:"" }}','{{ p.mobile_no }}',
+                {{ p.meal_b|lower }},{{ p.meal_l|lower }},{{ p.meal_d|lower }},
+                {{ p.arrived|lower }},{{ p.left_site|lower }},{{ p.is_active|lower }},
+                '{{ p.remarks|escapejs }}')" >Edit</button>
+            {% if request.user.profile.role == 'admin' %}
+            <form method="POST" action="{% url 'pob_delete_person' p.pk %}" style="display:inline"
+                  onsubmit="return confirm('Remove {{ p.name }}?')">
+              {% csrf_token %}<button type="submit" class="btn btn-outline-danger btn-sm py-0">Del</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% empty %}
+<div class="card-box text-center py-4 text-muted">No persons recorded.</div>
+{% endfor %}
+</div><!-- end #categoryView -->
+
+<!-- EDIT MODAL -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Person — <span id="editName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="editForm">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Name</label>
+              <input type="text" name="name" id="eName" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Category</label>
+              <select name="category" id="eCat" class="form-select">
+                {% for val, label in cat_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Shift</label>
+              <select name="shift" id="eShift" class="form-select">
+                <option value="D">Day</option><option value="N">Night</option><option value="G">General</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Mobile</label>
+              <input type="text" name="mobile_no" id="eMobile" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Designation</label>
+              <select name="desig_id" id="eDesig" class="form-select">
+                <option value="">-- Select --</option>
+                {% for d in desigs %}<option value="{{ d.pk }}">{{ d.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Company</label>
+              <select name="company_id" id="eCompany" class="form-select">
+                <option value="">-- Select --</option>
+                {% for c in companies %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">DOJ</label>
+              <input type="date" name="doj" id="eDoj" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Accommodation</label>
+              <select name="accommodation_id" id="eAccomm" class="form-select" onchange="loadRooms(this.value)">
+                <option value="">-- Select --</option>
+                {% for a in accomms %}<option value="{{ a.pk }}">{{ a.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Room No</label>
+              <select name="room_id" id="eRoom" class="form-select">
+                <option value="">-- Select --</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Meals & Status</label>
+              <div class="d-flex gap-4 flex-wrap">
+                <label><input type="checkbox" name="meal_b" id="eMealB"> Breakfast</label>
+                <label><input type="checkbox" name="meal_l" id="eMealL"> Lunch</label>
+                <label><input type="checkbox" name="meal_d" id="eMealD"> Dinner</label>
+                <label><input type="checkbox" name="arrived" id="eArrived"> Arrived Today</label>
+                <label><input type="checkbox" name="left_site" id="eLeft"> Left Site</label>
+                <label><input type="checkbox" name="is_active" id="eActive"> Active on POB</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Remarks</label>
+              <textarea name="remarks" id="eRemarks" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── View Toggle ────────────────────────────────────────────────────────────
+function setView(view) {
+  var isShift = view === 'shift';
+  document.getElementById('shiftView').style.display    = isShift ? '' : 'none';
+  document.getElementById('categoryView').style.display = isShift ? 'none' : '';
+  document.getElementById('btnShiftView').className  = 'btn btn-sm ' + (isShift ? 'btn-primary' : 'btn-outline-secondary');
+  document.getElementById('btnCatView').className    = 'btn btn-sm ' + (!isShift ? 'btn-primary' : 'btn-outline-secondary');
+  // style tweak for text
+  document.getElementById('btnShiftView').style.fontSize = '12px';
+  document.getElementById('btnCatView').style.fontSize   = '12px';
+  localStorage.setItem('pobView', view);
+}
+// Restore last used view
+(function() {
+  var saved = localStorage.getItem('pobView');
+  if (saved === 'category') setView('category');
+})();
+
+// Global floating dropdown for detail page
+let _detailFloatTarget = null;
+const _detailDrop = document.createElement('div');
+_detailDrop.style.cssText = 'display:none;position:fixed;background:white;border:1px solid #bae6fd;border-radius:6px;z-index:99999;min-width:320px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:260px;overflow-y:auto';
+document.body.appendChild(_detailDrop);
+
+document.addEventListener('click', function(e) {
+  if (!_detailDrop.contains(e.target) && e.target !== _detailFloatTarget)
+    _detailDrop.style.display = 'none';
+});
+
+function detailShowDropdown(inp, employees) {
+  _detailFloatTarget = inp;
+  if (!employees.length) { _detailDrop.style.display='none'; return; }
+  const rect = inp.getBoundingClientRect();
+  _detailDrop.style.top  = (rect.bottom + window.scrollY + 2) + 'px';
+  _detailDrop.style.left = (rect.left + window.scrollX) + 'px';
+  _detailDrop.style.width = Math.max(320, rect.width) + 'px';
+  _detailDrop.innerHTML = employees.map(e =>
+    `<div style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between"
+          onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"
+          onmousedown="event.preventDefault();detailFillEmployee('${e.name.replace(/'/g,"\'")}',${e.desig_id||0},${e.comp_id||0},'${e.shift||'G'}','${e.mobile||''}','${e.category||''}');_detailDrop.style.display='none';">
+      <span><strong>${e.name}</strong> <small style="color:#64748b">${e.desig||''}</small></span>
+      <span style="color:#0369a1;font-size:11px">${e.company||''}</span>
+    </div>`
+  ).join('');
+  _detailDrop.style.display = 'block';
+}
+
+function detailFetchEmployees(inp) {
+  const q   = inp.value.trim();
+  const cat = document.getElementById('addCatSel') ? document.getElementById('addCatSel').value : '';
+  const rig  = '{{ log.rig }}';
+  const date = '{{ log.date|date:"Y-m-d" }}';
+  fetch('/pob/api/employees/?q=' + encodeURIComponent(q) + '&rig=' + encodeURIComponent(rig) + '&category=' + encodeURIComponent(cat) + '&date=' + encodeURIComponent(date))
+    .then(r => r.json())
+    .then(data => detailShowDropdown(inp, data.employees));
+}
+
+function detailSearchEmployee(inp) {
+  clearTimeout(window._detailTimer);
+  window._detailTimer = setTimeout(() => detailFetchEmployees(inp), 200);
+}
+
+function detailFocusEmployee(inp) { detailFetchEmployees(inp); }
+
+function detailFillEmployee(name, desigId, compId, shift, mobile, category) {
+  document.getElementById('addNameInp').value = name;
+  if (desigId) document.getElementById('addDesigSel').value = desigId;
+  if (compId)  document.getElementById('addCompSel').value  = compId;
+  if (shift)   document.getElementById('addShiftSel').value = shift;
+  if (mobile)  document.getElementById('addMobileSel').value = mobile;
+  if (category) document.getElementById('addCatSel').value  = category;
+}
+
+function detailLoadRooms(accommId) {
+  const sel = document.getElementById('addRoomSel');
+  sel.innerHTML = '<option value="">-- Room --</option>';
+  if (!accommId) return;
+  fetch('/pob/api/rooms/?accommodation_id=' + accommId)
+    .then(r => r.json())
+    .then(data => {
+      data.rooms.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id; opt.textContent = r.room_no;
+        sel.appendChild(opt);
+      });
+    });
+}
+
+function loadRooms(accommId, selectedRoomId) {
+  const sel = document.getElementById('eRoom');
+  sel.innerHTML = '<option value="">-- Select Room --</option>';
+  if (!accommId) return;
+  fetch('/pob/api/rooms/?accommodation_id=' + accommId)
+    .then(r => r.json())
+    .then(data => {
+      data.rooms.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id; opt.textContent = r.room_no;
+        if (r.id == selectedRoomId) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+}
+
+function openEdit(pk, name, cat, shift, desigId, desigName, compId, compName, accommId, accommName, roomId, roomName, doj, mobile, mb, ml, md, arrived, left, active, remarks) {
+  document.getElementById('editName').textContent = name;
+  document.getElementById('eName').value    = name;
+  document.getElementById('eCat').value     = cat;
+  document.getElementById('eShift').value   = shift || 'G';
+  document.getElementById('eMobile').value  = mobile;
+  document.getElementById('eDesig').value   = desigId || '';
+  document.getElementById('eCompany').value = compId || '';
+  document.getElementById('eAccomm').value  = accommId || '';
+  document.getElementById('eDoj').value     = doj || '';
+  document.getElementById('eMealB').checked  = mb;
+  document.getElementById('eMealL').checked  = ml;
+  document.getElementById('eMealD').checked  = md;
+  document.getElementById('eArrived').checked = arrived;
+  document.getElementById('eLeft').checked   = left;
+  document.getElementById('eActive').checked = active;
+  document.getElementById('eRemarks').value  = remarks;
+  document.getElementById('editForm').action = '/pob/person/' + pk + '/edit/';
+
+  loadRooms(accommId, roomId);
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+</script>
+{% endblock %}

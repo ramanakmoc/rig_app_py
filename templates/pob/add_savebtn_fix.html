@@ -1,0 +1,794 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h3>&#128101; Add POB Entry</h3>
+  <div class="d-flex gap-2">
+    <a href="{% url 'pob_employees' %}" class="btn btn-outline-secondary btn-sm">&#128100; Employees</a>
+    <a href="{% url 'pob_masters' %}" class="btn btn-outline-secondary btn-sm">&#9881; Masters</a>
+    <a href="{% url 'pob_report' %}" class="btn btn-outline-secondary btn-sm">&#8592; Back</a>
+  </div>
+</div>
+
+<form method="POST">
+  {% csrf_token %}
+
+  <!-- HEADER -->
+  <div class="card-box mb-3">
+    <div class="section-title">POB Header</div>
+    <div class="row g-3">
+      <div class="col-md-2 col-6">
+        <label class="form-label fw-semibold">Date *</label>
+        <input type="date" name="date" id="dateInput" class="form-control" value="{{ default_date }}" max="{{ today }}" required
+               onchange="reloadForRig(document.getElementById('rigSelect').value)">
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label fw-semibold">Rig *</label>
+        <select name="rig" id="rigSelect" class="form-select" required
+                onchange="reloadForRig(this.value)">
+          {% for r in rigs %}<option value="{{ r }}" {% if r == prev_rig %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label fw-semibold">Location (AWP/MWP)</label>
+        <select name="location" class="form-select">
+          <option value="">-- Select Location --</option>
+          {% for loc in locations %}
+          <option value="{{ loc.location }}">{{ loc.category }} — {{ loc.location }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label">LTI Free Days</label>
+        <input type="number" name="lti_free_days" class="form-control" min="0" value="0">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Remarks</label>
+        <input type="text" name="remarks" class="form-control" placeholder="Overall remarks">
+      </div>
+    </div>
+  </div>
+
+  <!-- PERSONS TABLE -->
+  <div class="card-box mb-3">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="section-title" style="margin:0">Personnel on Board</div>
+      <button type="button" class="btn btn-primary btn-sm" onclick="showAddPersonForm()">+ Add Person</button>
+    </div>
+
+    <!-- INLINE ADD PERSON FORM -->
+    <div id="addPersonCard" style="display:none;background:#f0f4fb;border:1.5px solid #bfdbfe;border-radius:10px;padding:16px 18px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:#1e3a5f;margin-bottom:10px">&#10010; Add Person</div>
+      <div class="row g-2">
+        <div class="col-md-2">
+          <label class="form-label form-label-sm">Category</label>
+          <select id="apCat" class="form-select form-select-sm">
+            {% for val, label in categories %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3" style="position:relative">
+          <label class="form-label form-label-sm">Name *</label>
+          <input type="text" id="apName" class="form-control form-control-sm" placeholder="Type or select from master"
+                 oninput="apSearch(this)" onfocus="apSearch(this)" autocomplete="off">
+          <div id="apDrop" style="display:none;position:absolute;left:0;top:100%;background:#fff;border:1.5px solid #bfdbfe;border-radius:6px;z-index:9999;min-width:280px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-height:220px;overflow-y:auto"></div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm">Designation</label>
+          <select id="apDesig" class="form-select form-select-sm">
+            <option value="">-- Select --</option>
+            {% for d in desigs %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label form-label-sm">Shift</label>
+          <select id="apShift" class="form-select form-select-sm">
+            <option value="G" selected>G</option><option value="D">D</option><option value="N">N</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm">Company</label>
+          <select id="apComp" class="form-select form-select-sm">
+            <option value="">-- Select --</option>
+            {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm">Accommodation</label>
+          <select id="apAccomm" class="form-select form-select-sm" onchange="apLoadRooms()">
+            <option value="">-- Select --</option>
+            {% for a in accomms %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-2">
+          <label class="form-label form-label-sm">Room No</label>
+          <select id="apRoom" class="form-select form-select-sm"><option value="">-- Room --</option></select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm">Date of Joining</label>
+          <input type="date" id="apDoj" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label form-label-sm">Mobile</label>
+          <input type="text" id="apMobile" class="form-control form-control-sm" placeholder="Mobile no">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label form-label-sm">Meals &amp; Status</label>
+          <div style="display:flex;gap:14px;align-items:center;padding-top:6px">
+            <label style="font-size:12px"><input type="checkbox" id="apMealB" checked> B</label>
+            <label style="font-size:12px"><input type="checkbox" id="apMealL" checked> L</label>
+            <label style="font-size:12px"><input type="checkbox" id="apMealD" checked> D</label>
+            <label style="font-size:12px"><input type="checkbox" id="apArrived"> Arrived</label>
+          </div>
+        </div>
+        <div class="col-md-3 d-flex align-items-end gap-2">
+          <button type="button" class="btn btn-success btn-sm" onclick="apAddToTable()">&#10003; Add to List</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="hideAddPersonForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    {% if prev_persons %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#15803d">
+      ✓ Pre-filled {{ prev_persons|length }} persons from previous day — update meals and status as needed.
+    </div>
+    {% if rotation_due_count %}
+    <div style="background:#fff0f0;border:1.5px solid #fca5a5;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:12px;color:#dc2626;display:flex;align-items:center;gap:8px">
+      <span style="font-size:16px">⚠️</span>
+      <strong>{{ rotation_due_count }} crew member{{ rotation_due_count|pluralize }} have completed {{ rotation_days }}+ days on site.</strong>
+      Their <em>Left Site</em> checkbox is pre-ticked below — uncheck it if the reliever hasn't arrived yet.
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="table-responsive">
+      <table class="table-clean" style="font-size:11px" id="personsTable">
+        <thead>
+          <tr style="background:#0b3d6d;color:white">
+            <th style="width:30px">#</th>
+            <th style="min-width:130px">Category</th>
+            <th style="min-width:130px">Name *</th>
+            <th style="min-width:150px">Designation</th>
+            <th style="width:70px">Shift</th>
+            <th style="min-width:130px">Company</th>
+            <th style="min-width:130px">Accommodation</th>
+            <th style="min-width:110px">Room No</th>
+            <th style="width:120px">DOJ</th>
+            <th style="width:110px">Mobile</th>
+            <th style="width:25px">B</th>
+            <th style="width:25px">L</th>
+            <th style="width:25px">D</th>
+            <th style="width:55px">Arrived</th>
+            <th style="width:40px">Left</th>
+            <th style="min-width:100px">Remarks</th>
+            <th style="width:80px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          {% for cat_label, cat_persons in prev_persons_grouped.items %}
+          <tr style="background:#0b3d6d">
+            <td colspan="18" style="padding:6px 12px;font-size:11px;font-weight:700;color:#fff;letter-spacing:0.5px;border-bottom:2px solid #1e5a9c">
+              &#127991; {{ cat_label }} &nbsp;<span style="background:rgba(255,255,255,0.2);padding:1px 7px;border-radius:8px;font-size:10px">{{ cat_persons|length }}</span>
+            </td>
+          </tr>
+          {% for p in cat_persons %}
+          {% if p.relief_due %}
+          <tr data-row="1" class="relief-row" style="background:#fff0f0;border-left:3px solid #dc2626">
+          {% else %}
+          <tr data-row="1">
+          {% endif %}
+            <td>{{ forloop.counter }}</td>
+            <td>
+              <select name="category" class="form-select form-select-sm">
+                {% for val, label in categories %}<option value="{{ val }}" {% if val == p.category %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              {% if p.relief_due %}
+              <div style="font-size:9px;font-weight:700;color:#dc2626;margin-bottom:2px">
+                ⚠️ RELIEF DUE — Day {{ p.next_days }}{% if p.overdue_by %} (+{{ p.overdue_by }}d OT){% endif %}
+              </div>
+              {% endif %}
+              <input type="text" name="name" class="form-control form-control-sm" value="{{ p.name }}"
+                     required oninput="searchEmployee(this)" onfocus="focusEmployee(this)" autocomplete="off">
+              <div class="emp-dropdown" style="display:none;position:absolute;background:white;border:1px solid #e2e8f0;border-radius:4px;z-index:999;min-width:220px;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+            </td>
+            <td>
+              <select name="desig_id" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for d in desigs %}<option value="{{ d.id }}" {% if p.designation and p.designation.pk == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="shift" class="form-select form-select-sm">
+                <option value="D" {% if p.shift == 'D' %}selected{% endif %}>Day</option>
+                <option value="N" {% if p.shift == 'N' %}selected{% endif %}>Night</option>
+                <option value="G" {% if p.shift == 'G' %}selected{% endif %}>General</option>
+              </select>
+            </td>
+            <td>
+              <select name="company_id" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for c in companies %}<option value="{{ c.id }}" {% if p.company and p.company.pk == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="accommodation_id" class="form-select form-select-sm accomm-sel"
+                      onchange="loadRowRooms(this)">
+                <option value="">-- Select --</option>
+                {% for a in accomms %}<option value="{{ a.id }}" {% if p.accommodation and p.accommodation.pk == a.id %}selected{% endif %}>{{ a.name }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select name="room_id" class="form-select form-select-sm room-sel">
+                <option value="">-- Room --</option>
+                {% if p.room_no %}<option value="{{ p.room_no.pk }}" selected>{{ p.room_no.room_no }}</option>{% endif %}
+              </select>
+            </td>
+            <td><input type="date" name="doj" class="form-control form-control-sm" value="{{ p.doj|date:'Y-m-d' }}"></td>
+            <td><input type="text" name="mobile_no" class="form-control form-control-sm" value="{{ p.mobile_no }}"></td>
+            <td><input type="checkbox" name="meal_b" value="{{ forloop.counter0 }}" {% if p.meal_b %}checked{% endif %}></td>
+            <td><input type="checkbox" name="meal_l" value="{{ forloop.counter0 }}" {% if p.meal_l %}checked{% endif %}></td>
+            <td><input type="checkbox" name="meal_d" value="{{ forloop.counter0 }}" {% if p.meal_d %}checked{% endif %}></td>
+            <td><input type="checkbox" name="arrived" value="{{ forloop.counter0 }}"></td>
+            <td><input type="checkbox" name="left_site" value="{{ forloop.counter0 }}" {% if p.relief_due %}checked{% endif %}></td>
+            <td><input type="text" name="person_remarks" class="form-control form-control-sm"
+              value="{% if p.relief_due %}RELIEF DUE - Day {{ p.next_days }}{% if p.overdue_by %} (+{{ p.overdue_by }}d OT){% endif %}{% else %}{{ p.remarks }}{% endif %}"></td>
+            <td style="white-space:nowrap">
+              <button type="button" class="btn btn-success btn-sm py-0 save-row-btn"
+                onclick="saveRowAjax(this)" title="Save this person">&#10003; Save</button>
+              <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                onclick="editRow(this)" title="Edit">&#9998;</button>
+              <button type="button" class="btn btn-outline-danger btn-sm py-0"
+                onclick="deleteRow(this)" title="Remove">&#10005;</button>
+            </td>
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex gap-3">
+    <button type="submit" class="btn btn-success px-5">&#10003; Save POB Entry</button>
+    <a href="{% url 'pob_report' %}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+
+{% block extra_js %}
+<script>
+let rowCount = {{ prev_persons|length }};
+
+// Pass master data to JS
+const desigs    = [{% for d in desigs %}{"id":{{ d.id }},"name":"{{ d.name }}","cat":"{{ d.category }}"},{% endfor %}];
+const companies = [{% for c in companies %}{"id":{{ c.id }},"name":"{{ c.name }}"},{% endfor %}];
+const accomms   = [{% for a in accomms %}{"id":{{ a.id }},"name":"{{ a.name }}"},{% endfor %}];
+const allRooms  = [{% for r in rooms %}{"id":{{ r.id }},"room":"{{ r.room_no|escapejs }}","accomm_id":{{ r.accommodation__id }}},{% endfor %}];
+const categories = [{% for val, label in categories %}["{{ val }}","{{ label }}"],{% endfor %}];
+
+function makeDesigOpts(selVal) {
+  let html = '<option value="">-- Select --</option>';
+  let lastCat = '';
+  desigs.forEach(d => {
+    if (d.cat !== lastCat) { lastCat = d.cat; }
+    html += `<option value="${d.id}" ${d.id==selVal?'selected':''}>${d.name}</option>`;
+  });
+  return html;
+}
+function makeCompOpts(selVal) {
+  return '<option value="">-- Select --</option>' +
+    companies.map(c => `<option value="${c.id}" ${c.id==selVal?'selected':''}>${c.name}</option>`).join('');
+}
+function makeAccommOpts(selVal) {
+  return '<option value="">-- Select --</option>' +
+    accomms.map(a => `<option value="${a.id}" ${a.id==selVal?'selected':''}>${a.name}</option>`).join('');
+}
+function makeRoomOpts(accommId, selVal) {
+  const rooms = allRooms.filter(r => r.accomm_id == accommId);
+  return '<option value="">-- Room --</option>' +
+    rooms.map(r => `<option value="${r.id}" ${r.id==selVal?'selected':''}>${r.room}</option>`).join('');
+}
+function makeCatOpts(selVal) {
+  return categories.map(c => `<option value="${c[0]}" ${c[0]==selVal?'selected':''}>${c[1]}</option>`).join('');
+}
+
+function loadRowRooms(sel) {
+  const row = sel.closest('tr');
+  const roomSel = row.querySelector('.room-sel');
+  roomSel.innerHTML = makeRoomOpts(sel.value, '');
+}
+
+function addRow() {
+  const i = rowCount++;
+  const tbody = document.getElementById('tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${i+1}</td>
+    <td><select name="category" class="form-select form-select-sm">${makeCatOpts('KSD_CREW')}</select></td>
+    <td style="position:relative">
+      <input type="text" name="name" class="form-control form-control-sm" required
+             placeholder="Name" oninput="searchEmployee(this)" onfocus="focusEmployee(this)" autocomplete="off">
+      <div class="emp-dropdown" style="display:none;position:absolute;left:0;top:100%;background:white;border:1px solid #e2e8f0;border-radius:4px;z-index:9999;min-width:250px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-height:200px;overflow-y:auto"></div>
+    </td>
+    <td><select name="desig_id" class="form-select form-select-sm">${makeDesigOpts('')}</select></td>
+    <td><select name="shift" class="form-select form-select-sm"><option value="D">Day</option><option value="N">Night</option><option value="G" selected>G</option></select></td>
+    <td><select name="company_id" class="form-select form-select-sm">${makeCompOpts('')}</select></td>
+    <td><select name="accommodation_id" class="form-select form-select-sm accomm-sel" onchange="loadRowRooms(this)">${makeAccommOpts('')}</select></td>
+    <td><select name="room_id" class="form-select form-select-sm room-sel"><option value="">-- Room --</option></select></td>
+    <td><input type="date" name="doj" class="form-control form-control-sm"></td>
+    <td><input type="text" name="mobile_no" class="form-control form-control-sm"></td>
+    <td><input type="checkbox" name="meal_b" value="${i}" checked></td>
+    <td><input type="checkbox" name="meal_l" value="${i}" checked></td>
+    <td><input type="checkbox" name="meal_d" value="${i}" checked></td>
+    <td><input type="checkbox" name="arrived" value="${i}" checked></td>
+    <td><input type="checkbox" name="left_site" value="${i}"></td>
+    <td><input type="text" name="person_remarks" class="form-control form-control-sm"></td>
+    <td style="white-space:nowrap">
+      <button type="button" class="btn btn-success btn-sm py-0 save-row-btn" onclick="saveRowAjax(this)" title="Save this person">&#10003; Save</button>
+      <button type="button" class="btn btn-outline-primary btn-sm py-0" onclick="editRow(this)" title="Edit">&#9998;</button>
+      <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteRow(this)" title="Remove">&#10005;</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+  // Scroll new row into view and focus name field
+  tr.scrollIntoView({behavior: 'smooth', block: 'center'});
+  setTimeout(() => tr.querySelector('[name=name]').focus(), 300);
+}
+
+// Employee auto-complete
+let searchTimer;
+
+// ── Inline Add Person Card ─────────────────────────────────────────────────
+
+// ── AJAX Save Individual Person Row ───────────────────────────────────────
+function getHeaderData() {
+  return {
+    rig:           document.getElementById('rigSelect').value,
+    date:          document.getElementById('dateInput')
+                    ? document.getElementById('dateInput').value
+                    : document.querySelector('[name=date]').value,
+    location:      document.querySelector('[name=location]')
+                    ? document.querySelector('[name=location]').value : '',
+    lti_free_days: document.querySelector('[name=lti_free_days]')
+                    ? document.querySelector('[name=lti_free_days]').value : 0,
+    log_remarks:   document.querySelector('[name=remarks]')
+                    ? document.querySelector('[name=remarks]').value : '',
+  };
+}
+
+function getRowData(tr) {
+  const v = (sel) => { const el = tr.querySelector(sel); return el ? el.value : ''; };
+  const b = (sel) => { const el = tr.querySelector(sel); return el ? el.checked : false; };
+  return {
+    name:             v('[name=name]'),
+    category:         v('[name=category]'),
+    shift:            v('[name=shift]'),
+    desig_id:         v('[name=desig_id]'),
+    company_id:       v('[name=company_id]'),
+    accommodation_id: v('[name=accommodation_id]'),
+    room_id:          v('[name=room_id]'),
+    doj:              v('[name=doj]'),
+    mobile_no:        v('[name=mobile_no]'),
+    meal_b:           b('[name=meal_b]'),
+    meal_l:           b('[name=meal_l]'),
+    meal_d:           b('[name=meal_d]'),
+    arrived:          b('[name=arrived]'),
+    left_site:        b('[name=left_site]'),
+    remarks:          v('[name=person_remarks]'),
+  };
+}
+
+async function saveRowAjax(btn) {
+  const tr = btn.closest('tr');
+  const name = tr.querySelector('[name=name]') ? tr.querySelector('[name=name]').value.trim() : '';
+  if (!name) { alert('Name is required before saving.'); return; }
+
+  const header = getHeaderData();
+  if (!header.rig || !header.date) {
+    alert('Please select a Rig and Date at the top before saving.');
+    return;
+  }
+
+  // Visual: saving state
+  btn.disabled   = true;
+  btn.innerHTML  = '&#8987; Saving...';
+  btn.className  = 'btn btn-secondary btn-sm py-0 save-row-btn';
+
+  const payload = Object.assign({}, header, getRowData(tr));
+  const csrf    = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+  try {
+    const resp = await fetch('/pob/api/save-person/', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+      body:    JSON.stringify(payload),
+    });
+    const result = await resp.json();
+
+    if (result.ok) {
+      // Success: green row, Save button disabled, Edit/Delete stay active
+      tr.style.background   = '#f0fdf4';
+      tr.style.borderLeft   = '3px solid #16a34a';
+      btn.innerHTML         = '&#10003; Saved';
+      btn.className         = 'btn btn-secondary btn-sm py-0 save-row-btn';
+      btn.disabled          = true;
+      btn.style.opacity     = '0.55';
+      btn.onclick           = null;  // prevent double-save
+      tr.setAttribute('data-saved', '1');
+
+      // Store log_pk on the form so header save knows log already exists
+      let logPkInput = document.getElementById('savedLogPk');
+      if (!logPkInput) {
+        logPkInput = document.createElement('input');
+        logPkInput.type = 'hidden';
+        logPkInput.name = 'existing_log_pk';
+        logPkInput.id   = 'savedLogPk';
+        document.querySelector('form').appendChild(logPkInput);
+      }
+      logPkInput.value = result.log_pk;
+
+      // Show toast
+      showSaveToast(name + ' saved ✅');
+    } else {
+      btn.disabled  = false;
+      btn.innerHTML = '&#10003; Save';
+      btn.className = 'btn btn-danger btn-sm py-0 save-row-btn';
+      alert('Error saving ' + name + ': ' + result.error);
+    }
+  } catch (err) {
+    btn.disabled  = false;
+    btn.innerHTML = '&#10003; Save';
+    btn.className = 'btn btn-warning btn-sm py-0 save-row-btn';
+    alert('Network error: ' + err.message);
+  }
+}
+
+function showSaveToast(msg) {
+  let toast = document.getElementById('saveToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'saveToast';
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#16a34a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.18);transition:opacity 0.3s';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
+
+function showAddPersonForm() {
+  const card = document.getElementById('addPersonCard');
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'center'});
+  setTimeout(() => document.getElementById('apName').focus(), 300);
+}
+function hideAddPersonForm() {
+  document.getElementById('addPersonCard').style.display = 'none';
+  apClearForm();
+}
+function apClearForm() {
+  ['apName','apDoj','apMobile'].forEach(id => document.getElementById(id).value = '');
+  ['apDesig','apComp','apAccomm'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('apShift').value = 'G';
+  document.getElementById('apRoom').innerHTML = '<option value="">-- Room --</option>';
+  document.getElementById('apMealB').checked = true;
+  document.getElementById('apMealL').checked = true;
+  document.getElementById('apMealD').checked = true;
+  document.getElementById('apArrived').checked = false;
+  document.getElementById('apDrop').style.display = 'none';
+}
+function apLoadRooms() {
+  const accommId = document.getElementById('apAccomm').value;
+  const filtered = allRooms.filter(r => r.accomm_id == accommId);
+  document.getElementById('apRoom').innerHTML =
+    '<option value="">-- Room --</option>' +
+    filtered.map(r => `<option value="${r.id}">${r.room}</option>`).join('');
+}
+let apTimer;
+function apSearch(inp) {
+  clearTimeout(apTimer);
+  const q   = inp.value.trim();
+  const rig = getRig();
+  const cat = document.getElementById('apCat').value;
+  const di  = document.getElementById('dateInput');
+  const date = di ? di.value : (document.querySelector('[name=date]') || {value:''}).value;
+  apTimer = setTimeout(() => {
+    fetch('/pob/api/employees/?q=' + encodeURIComponent(q) +
+          '&rig=' + encodeURIComponent(rig) +
+          '&category=' + encodeURIComponent(cat) +
+          '&date=' + encodeURIComponent(date))
+      .then(r => r.json())
+      .then(data => {
+        const drop = document.getElementById('apDrop');
+        if (!data.employees || !data.employees.length) { drop.style.display='none'; return; }
+        drop.innerHTML = data.employees.map(e => {
+          const nm  = (e.name||'').replace(/'/g,"&#39;");
+          const dsg = (e.desig||'').replace(/'/g,"&#39;");
+          const cmp = (e.company||'').replace(/'/g,"&#39;");
+          return `<div style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between"
+                       onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"
+                       onmousedown="event.preventDefault();apFill('${nm}',${e.desig_id||0},'${dsg}',${e.comp_id||0},'${cmp}','${e.shift||'G'}','${e.mobile||''}','${e.category||'KSD_CREW'}')">
+                    <span><strong>${e.name}</strong> <small style="color:#64748b">${e.desig||''}</small></span>
+                    <span style="color:#0369a1;font-size:11px">${e.company||''}</span>
+                  </div>`;
+        }).join('');
+        drop.style.display = 'block';
+      });
+  }, 200);
+}
+document.addEventListener('click', function(e) {
+  const drop = document.getElementById('apDrop');
+  const inp  = document.getElementById('apName');
+  if (drop && !drop.contains(e.target) && e.target !== inp) drop.style.display = 'none';
+});
+function apFill(name, desigId, desig, compId, company, shift, mobile, category) {
+  document.getElementById('apName').value   = name;
+  document.getElementById('apDrop').style.display = 'none';
+  if (desigId)  document.getElementById('apDesig').value  = desigId;
+  if (compId)   document.getElementById('apComp').value   = compId;
+  if (shift)    document.getElementById('apShift').value  = shift;
+  if (mobile)   document.getElementById('apMobile').value = mobile;
+  if (category) document.getElementById('apCat').value    = category;
+}
+function apAddToTable() {
+  const name = document.getElementById('apName').value.trim();
+  if (!name) { alert('Name is required.'); return; }
+  addRow();
+  const rows = document.querySelectorAll('#personsTable tbody tr');
+  const row  = rows[rows.length - 1];
+  if (!row) return;
+  row.querySelector('[name=name]').value = name;
+  const get = id => document.getElementById(id);
+  const set = (sel, val) => { if (sel && val) sel.value = val; };
+  set(row.querySelector('[name=category]'),       get('apCat').value);
+  set(row.querySelector('[name=desig_id]'),        get('apDesig').value);
+  set(row.querySelector('[name=company_id]'),      get('apComp').value);
+  set(row.querySelector('[name=shift]'),           get('apShift').value);
+  set(row.querySelector('[name=doj]'),             get('apDoj').value);
+  set(row.querySelector('[name=mobile_no]'),       get('apMobile').value);
+  const acSel = row.querySelector('[name=accommodation_id]');
+  if (acSel) { acSel.value = get('apAccomm').value; loadRowRooms(acSel); }
+  setTimeout(() => {
+    const rmSel = row.querySelector('[name=room_id]');
+    if (rmSel) rmSel.value = get('apRoom').value;
+  }, 60);
+  row.querySelector('[name=meal_b]').checked  = get('apMealB').checked;
+  row.querySelector('[name=meal_l]').checked  = get('apMealL').checked;
+  row.querySelector('[name=meal_d]').checked  = get('apMealD').checked;
+  row.querySelector('[name=arrived]').checked = get('apArrived').checked;
+  row.style.background = '#fefce8';
+  setTimeout(() => row.style.background = '', 1500);
+  row.scrollIntoView({behavior:'smooth', block:'nearest'});
+  apClearForm();
+  document.getElementById('apName').focus();
+}
+
+
+// ── Row Edit & Delete ──────────────────────────────────────────────────────
+function deleteRow(btn) {
+  const tr = btn.closest('tr');
+  tr.style.transition = 'opacity 0.2s';
+  tr.style.opacity = '0';
+  setTimeout(() => { tr.remove(); renumberRows(); }, 200);
+}
+
+function renumberRows() {
+  const rows = document.querySelectorAll('#personsTable tbody tr[data-row]');
+  rows.forEach((r, i) => {
+    const numCell = r.querySelector('td:first-child');
+    if (numCell) numCell.textContent = i + 1;
+  });
+}
+
+function editRow(btn) {
+  const tr = btn.closest('tr');
+  tr.setAttribute('data-editing', '1');
+
+  // Toggle all inputs/selects in row to enabled/visible
+  const inputs  = tr.querySelectorAll('input[type=text], input[type=date]');
+  const selects = tr.querySelectorAll('select');
+
+  // Highlight row
+  tr.style.background = '#eff6ff';
+  tr.style.outline    = '2px solid #2563eb';
+
+  // Make inputs clearly editable
+  inputs.forEach(inp => {
+    inp.style.background  = '#fff';
+    inp.style.border      = '1.5px solid #2563eb';
+    inp.style.borderRadius = '4px';
+  });
+  selects.forEach(sel => {
+    sel.style.border      = '1.5px solid #2563eb';
+    sel.style.borderRadius = '4px';
+  });
+
+  // Change Edit button to Save (tick)
+  btn.innerHTML   = '&#10003;';
+  btn.title       = 'Save changes';
+  btn.className   = 'btn btn-success btn-sm py-0';
+  btn.onclick     = function() { saveEditRow(this); };
+
+  // Focus the name field
+  const nameInp = tr.querySelector('[name=name]');
+  if (nameInp) { nameInp.focus(); nameInp.select(); }
+
+  // Re-enable Save button so edits can be saved again
+  const saveBtn = tr.querySelector('.save-row-btn');
+  if (saveBtn) {
+    saveBtn.innerHTML   = '&#10003; Save';
+    saveBtn.className   = 'btn btn-success btn-sm py-0 save-row-btn';
+    saveBtn.disabled    = false;
+    saveBtn.style.opacity = '1';
+    saveBtn.onclick     = function() { saveRowAjax(this); };
+  }
+}
+
+function saveEditRow(btn) {
+  const tr = btn.closest('tr');
+  tr.removeAttribute('data-editing');
+
+  // Remove edit highlights
+  tr.style.background = tr.classList.contains('relief-row') ? '#fff0f0' : '';
+  tr.style.outline    = '';
+
+  const inputs  = tr.querySelectorAll('input[type=text], input[type=date]');
+  const selects = tr.querySelectorAll('select');
+  inputs.forEach(inp  => { inp.style.background = ''; inp.style.border = ''; });
+  selects.forEach(sel => { sel.style.border = ''; });
+
+  // Restore Edit button
+  btn.innerHTML = '&#9998;';
+  btn.title     = 'Edit';
+  btn.className = 'btn btn-outline-primary btn-sm py-0';
+  btn.onclick   = function() { editRow(this); };
+
+  // Flash green to confirm save
+  tr.style.transition = 'background 0.3s';
+  tr.style.background = '#f0fdf4';
+  setTimeout(() => { tr.style.background = ''; tr.style.transition = ''; }, 800);
+
+  // If this row was previously AJAX-saved, re-disable Save button
+  // (user was just editing inline display, not re-submitting to server)
+  // Leave Save button ENABLED so they can click it to push edits to DB
+}
+
+function reloadForRig(rig) {
+  const date = document.getElementById('dateInput') 
+               ? document.getElementById('dateInput').value 
+               : document.querySelector('[name=date]').value;
+  if (rig) {
+    window.location.href = '/pob/add/?rig=' + encodeURIComponent(rig) + '&date=' + encodeURIComponent(date);
+  }
+}
+
+function getRig() {
+  const sel = document.getElementById('rigSelect') || document.querySelector('[name=rig]');
+  return sel ? sel.value : '';
+}
+
+// Global floating dropdown
+let _floatTarget = null;
+const _floatDrop = document.createElement('div');
+_floatDrop.id = 'globalEmpDrop';
+_floatDrop.style.cssText = 'display:none;position:fixed;background:white;border:1px solid #bae6fd;border-radius:6px;z-index:99999;min-width:300px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:260px;overflow-y:auto';
+document.body.appendChild(_floatDrop);
+
+document.addEventListener('click', function(e) {
+  if (!_floatDrop.contains(e.target) && e.target !== _floatTarget) {
+    _floatDrop.style.display = 'none';
+  }
+});
+
+function showEmployeeDropdown(inp, employees) {
+  _floatTarget = inp;
+  if (!employees.length) { _floatDrop.style.display='none'; return; }
+  const rect = inp.getBoundingClientRect();
+  _floatDrop.style.top  = (rect.bottom + window.scrollY + 2) + 'px';
+  _floatDrop.style.left = (rect.left + window.scrollX) + 'px';
+  _floatDrop.style.width = Math.max(300, rect.width) + 'px';
+  _floatDrop.innerHTML = employees.map(e =>
+    `<div style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center"
+          onmouseover="this.style.background='#eff6ff'"
+          onmouseout="this.style.background=''"
+          onmousedown="event.preventDefault();fillEmployee(_floatTarget.closest('tr'),'${e.name.replace(/'/g,"\'")}',${e.desig_id||0},'${(e.desig||'').replace(/'/g,"\'")}',${e.comp_id||0},'${(e.company||'').replace(/'/g,"\'")}','${e.shift||'G'}','${e.mobile||''}','${e.category||'KSD_CREW'}');_floatDrop.style.display='none';">
+      <span><strong>${e.name}</strong> <small style="color:#64748b">${e.desig||''}</small></span>
+      <span style="color:#0369a1;font-size:11px">${e.company||''}</span>
+    </div>`
+  ).join('');
+  _floatDrop.style.display = 'block';
+}
+
+function searchEmployee(inp) {
+  const dropdown = inp.nextElementSibling;
+  clearTimeout(searchTimer);
+  const q   = inp.value.trim();
+  const rig = getRig();
+  searchTimer = setTimeout(() => {
+    const cat  = getCategoryForRow(inp);
+    const date = getDate();
+    fetch('/pob/api/employees/?q=' + encodeURIComponent(q) + '&rig=' + encodeURIComponent(rig) + '&category=' + encodeURIComponent(cat) + '&date=' + encodeURIComponent(date))
+      .then(r => r.json())
+      .then(data => showEmployeeDropdown(inp, data.employees));
+  }, 200);
+}
+
+function getCategoryForRow(inp) {
+  const row = inp.closest('tr');
+  if (!row) return '';
+  const catSel = row.querySelector('[name=category]');
+  return catSel ? catSel.value : '';
+}
+
+function getDate() {
+  const d = document.querySelector('[name=date]');
+  return d ? d.value : '';
+}
+
+function focusEmployee(inp) {
+  const rig  = getRig();
+  if (!rig) return;
+  const cat  = getCategoryForRow(inp);
+  const date = getDate();
+  fetch('/pob/api/employees/?q=&rig=' + encodeURIComponent(rig) + '&category=' + encodeURIComponent(cat) + '&date=' + encodeURIComponent(date))
+    .then(r => r.json())
+    .then(data => showEmployeeDropdown(inp, data.employees));
+}
+
+function fillEmployee(row, name, desigId, desigName, compId, compName, shift, mobile, cat) {
+  row.querySelector('[name=name]').value = name;
+  row.querySelector('[name=name]').nextElementSibling.style.display = 'none';
+  const dsel = row.querySelector('[name=desig_id]');
+  if (desigId) dsel.value = desigId;
+  const csel = row.querySelector('[name=company_id]');
+  if (compId) csel.value = compId;
+  if (shift) row.querySelector('[name=shift]').value = shift;
+  if (mobile) row.querySelector('[name=mobile_no]').value = mobile;
+  if (cat) row.querySelector('[name=category]').value = cat;
+}
+
+function addEmployeeRow(name, desigId, desig, compId, company, shift, mobile, category) {
+  // Add a new row and fill with employee data
+  addRow();
+  const rows = document.querySelectorAll('#personsTable tbody tr');
+  const row  = rows[rows.length - 1];
+  if (!row) return;
+  row.querySelector('[name=name]').value = name;
+  const dsel = row.querySelector('[name=desig_id]');
+  if (dsel && desigId) dsel.value = desigId;
+  const csel = row.querySelector('[name=company_id]');
+  if (csel && compId) csel.value = compId;
+  const ssel = row.querySelector('[name=shift]');
+  if (ssel && shift) ssel.value = shift;
+  const catsel = row.querySelector('[name=category]');
+  if (catsel && category) catsel.value = category;
+  const mob = row.querySelector('[name=mobile_no]');
+  if (mob) mob.value = mobile || '';
+  // Highlight the chip as added
+  document.querySelectorAll('.emp-chip').forEach(c => {
+    if (c.textContent.trim().startsWith(name)) {
+      c.style.background = '#dcfce7';
+      c.style.color = '#15803d';
+      c.onclick = null;
+      c.style.cursor = 'default';
+    }
+  });
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', e => {
+  if (!e.target.matches('[name=name]')) {
+    document.querySelectorAll('.emp-dropdown').forEach(d => d.style.display='none');
+  }
+});
+
+// Initialize accommodations for pre-filled rows
+document.querySelectorAll('.accomm-sel').forEach(sel => {
+  if (sel.value) loadRowRooms(sel);
+});
+</script>
+{% endblock %}
+{% endblock %}
