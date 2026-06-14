@@ -31,10 +31,17 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/login/', timeout=5)"]
+      interval: 15s
+      timeout: 8s
+      retries: 10
+      start_period: 30s
 
   nginx:
     image: nginx:alpine
     restart: always
+    profiles: ["production"]
     ports:
       - "80:80"
       - "443:443"
@@ -61,6 +68,23 @@ services:
     command: >
       sh -c "echo '30 5 * * * cd /app && python manage.py send_daily_report >> /var/log/daily_report.log 2>&1' | crontab -
       && crond -f"
+
+  email_collector:
+    build: .
+    restart: always
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_docker
+    volumes:
+      - media_data:/app/media
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    entrypoint: []
+    command: python manage.py monitor_email_reports
 
 volumes:
   postgres_data:

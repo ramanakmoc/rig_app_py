@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div><h3>Email Report Collection</h3><p class="text-muted mb-0">Automated mailbox intake, validation, and report tracking</p></div>
+  {% if request.user.profile.role == 'admin' %}<a class="btn btn-outline-primary btn-sm" href="/admin/email_reports/">Configure</a>{% endif %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-2 col-6"><div class="stat-card blue"><h6>Received Today</h6><h2>{{ stats.received_today }}</h2></div></div>
+  <div class="col-md-2 col-6"><div class="stat-card green"><h6>Processed Today</h6><h2>{{ stats.processed_today }}</h2></div></div>
+  <div class="col-md-2 col-6"><div class="stat-card amber"><h6>Needs Review</h6><h2>{{ stats.needs_review }}</h2></div></div>
+  <div class="col-md-2 col-6"><div class="stat-card red"><h6>Failed</h6><h2>{{ stats.failed }}</h2></div></div>
+  <div class="col-md-2 col-6"><div class="stat-card red"><h6>Missing</h6><h2>{{ stats.missing }}</h2></div></div>
+  <div class="col-md-2 col-6"><div class="stat-card blue"><h6>Queued</h6><h2>{{ stats.queued }}</h2></div></div>
+</div>
+
+<div class="card-box mb-3">
+  <div class="section-title">Mailbox Health</div>
+  <div class="table-responsive"><table class="table-clean">
+    <thead><tr><th>Mailbox</th><th>Provider</th><th>Transport</th><th>Last Success</th><th>Status</th></tr></thead>
+    <tbody>{% for account in accounts %}<tr>
+      <td><strong>{{ account.name }}</strong><br><small>{{ account.email_address }}</small></td>
+      <td>{{ account.get_provider_display }}</td><td>{{ account.get_transport_display }}</td>
+      <td>{{ account.last_success_at|default:"Never" }}</td>
+      <td>{% if not account.is_active %}<span class="badge bg-secondary">Disabled</span>{% elif account.last_error %}<span class="badge bg-danger" title="{{ account.last_error }}">Error</span>{% else %}<span class="badge bg-success">Active</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No mailboxes configured.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+{% if missing_reports %}<div class="card-box mb-3 border border-danger-subtle">
+  <div class="section-title text-danger">Missing Reports</div>
+  <div class="table-responsive"><table class="table-clean">
+    <thead><tr><th>Date</th><th>Site</th><th>Report</th><th>Contractor</th><th>Due</th></tr></thead>
+    <tbody>{% for item in missing_reports %}<tr><td>{{ item.reporting_date }}</td><td>{{ item.expected_report.site_name }}</td><td>{{ item.expected_report.report_type }}</td><td>{{ item.expected_report.contractor|default:"Any" }}</td><td>{{ item.due_at }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>{% endif %}
+
+<div class="card-box py-3 mb-3"><form method="get" class="row g-2 align-items-end">
+  <div class="col-md-5"><label class="form-label">Search</label><input class="form-control form-control-sm" name="q" value="{{ filters.q }}" placeholder="Subject, sender, site, rig, or report type"></div>
+  <div class="col-md-3"><label class="form-label">Status</label><select class="form-select form-select-sm" name="status"><option value="">All statuses</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><button class="btn btn-primary btn-sm">Apply</button> <a class="btn btn-outline-secondary btn-sm" href="{% url 'email_reports:dashboard' %}">Reset</a></div>
+</form></div>
+
+<div class="card-box"><div class="section-title">Collected Messages</div><div class="table-responsive"><table class="table-clean">
+  <thead><tr><th>Received</th><th>Sender / Subject</th><th>Classification</th><th>Files</th><th>Confidence</th><th>Status</th></tr></thead>
+  <tbody>{% for item in messages_list %}<tr>
+    <td>{{ item.received_at|date:"d M Y H:i" }}</td>
+    <td><a href="{% url 'email_reports:message_detail' item.reference_number %}"><strong>{{ item.subject|default:"(no subject)"|truncatechars:60 }}</strong></a><br><small>{{ item.sender_email }}</small></td>
+    <td>{{ item.site_name|default:"Unknown" }}<br><small>{{ item.report_type|default:"Unclassified" }}{% if item.rig_name %} / {{ item.rig_name }}{% endif %}</small></td>
+    <td>{{ item.attachment_count }}</td><td>{% if item.confidence_score != None %}{{ item.confidence_score|floatformat:2 }}{% else %}-{% endif %}</td>
+    <td><span class="badge {% if item.status == 'processed' %}bg-success{% elif item.status == 'review' %}bg-warning text-dark{% elif item.status == 'failed' or item.status == 'rejected' %}bg-danger{% elif item.status == 'duplicate' %}bg-secondary{% else %}bg-primary{% endif %}">{{ item.get_status_display }}</span></td>
+  </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No email reports found.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}
+

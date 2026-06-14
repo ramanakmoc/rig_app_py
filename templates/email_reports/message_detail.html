@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start">
+  <div><h3>{{ email_message.subject|default:"(no subject)" }}</h3><p class="text-muted mb-0">Reference {{ email_message.reference_number }}</p></div>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'email_reports:dashboard' %}">Back</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card-box mb-3"><div class="section-title">Email</div>
+      <dl class="row mb-0"><dt class="col-sm-3">From</dt><dd class="col-sm-9">{{ email_message.sender_name }} &lt;{{ email_message.sender_email }}&gt;</dd><dt class="col-sm-3">To</dt><dd class="col-sm-9">{{ email_message.recipients|join:", " }}</dd><dt class="col-sm-3">Received</dt><dd class="col-sm-9">{{ email_message.received_at }}</dd><dt class="col-sm-3">Message ID</dt><dd class="col-sm-9 text-break"><small>{{ email_message.message_id }}</small></dd><dt class="col-sm-3">Archive</dt><dd class="col-sm-9"><a href="{% url 'email_reports:download_original' email_message.reference_number %}">Download original email</a></dd></dl>
+      <hr><pre style="white-space:pre-wrap;font-family:inherit">{{ email_message.body_text|default:"No plain-text body." }}</pre>
+    </div>
+    <div class="card-box mb-3"><div class="section-title">Attachments</div>
+      <div class="table-responsive"><table class="table-clean"><thead><tr><th>File</th><th>Size</th><th>Checksum</th><th>Status</th></tr></thead><tbody>{% for file in email_message.attachments.all %}<tr><td><a href="{% url 'email_reports:download_attachment' email_message.reference_number file.pk %}">{{ file.filename }}</a></td><td>{{ file.size_bytes }} bytes</td><td><small>{{ file.checksum_sha256|slice:":12" }}...</small></td><td>{{ file.get_status_display }}{% if file.error_message %}<br><small class="text-danger">{{ file.error_message }}</small>{% endif %}</td></tr>{% empty %}<tr><td colspan="4">No attachments.</td></tr>{% endfor %}</tbody></table></div>
+    </div>
+    <div class="card-box"><div class="section-title">Processing History</div>{% for item in email_message.history.all %}<div class="border-bottom py-2"><strong>{{ item.stage }}</strong> - {{ item.status }} <small class="text-muted">{{ item.created_at }}</small>{% if item.error_message %}<div class="text-danger">{{ item.error_message }}</div>{% endif %}</div>{% endfor %}</div>
+  </div>
+  <div class="col-lg-4"><div class="card-box"><div class="section-title">Classification</div>
+    <form method="post" action="{% url 'email_reports:review_message' email_message.reference_number %}">{% csrf_token %}
+      <label class="form-label">Site</label><input class="form-control form-control-sm mb-2" name="site_name" value="{{ email_message.site_name }}">
+      <label class="form-label">Contractor</label><input class="form-control form-control-sm mb-2" name="contractor" value="{{ email_message.contractor }}">
+      <label class="form-label">Report Type</label><input class="form-control form-control-sm mb-2" name="report_type" value="{{ email_message.report_type }}">
+      <label class="form-label">Rig</label><input class="form-control form-control-sm mb-2" name="rig_name" value="{{ email_message.rig_name }}">
+      <label class="form-label">Reporting Date</label><input type="date" class="form-control form-control-sm mb-2" name="reporting_date" value="{{ email_message.reporting_date|date:'Y-m-d' }}">
+      <label class="form-label">Department</label><input class="form-control form-control-sm mb-2" name="department" value="{{ email_message.department }}">
+      <label class="form-label">Priority</label><select class="form-select form-select-sm mb-3" name="priority">{% for value,label in email_message.PRIORITY_CHOICES %}<option value="{{ value }}" {% if email_message.priority == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      <p><strong>Status:</strong> {{ email_message.get_status_display }}<br><strong>Confidence:</strong> {{ email_message.confidence_score|default:"-" }}</p>
+      {% if email_message.validation_errors %}<div class="alert alert-warning py-2"><strong>Review notes</strong><ul class="mb-0">{% for error in email_message.validation_errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+      {% if request.user.profile.role == 'admin' or request.user.profile.role == 'supervisor' %}<button class="btn btn-primary w-100">Approve Classification</button>{% endif %}
+    </form>
+  </div></div>
+</div>
+{% endblock %}

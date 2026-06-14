@@ -41,6 +41,7 @@
   <a href="{% url 'alerts' %}"         class="{% if page_title == 'Zero Rate Alerts' %}active{% endif %}">&#9888;&nbsp; Alerts</a>
   <a href="{% url 'pob_report' %}"  class="{% if 'POB' in page_title %}active{% endif %}">&#128101;&nbsp; POB</a>
   <a href="{% url 'ilm_report' %}"     class="{% if page_title == 'ILM Report' %}active{% endif %}">&#128200;&nbsp; ILM Details</a>
+  <a href="{% url 'email_reports:dashboard' %}" class="{% if page_title == 'Email Report Collection' or page_title == 'Email Report Detail' %}active{% endif %}">Email Collection</a>
 
 
   <div class="sidebar-section">HSD Diesel</div>

@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libgirepository1.0-dev \
     fonts-liberation \
+    tesseract-ocr \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set work directory
