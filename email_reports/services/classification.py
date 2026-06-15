@@ -9,10 +9,15 @@ from masters.models import Rig, Vendor, WellLocation
 
 
 REPORT_TYPES = {
-    "Daily Rig Report": ["daily rig report", "drr", "daily drilling report"],
-    "HSD Report": ["hsd report", "diesel report", "fuel report"],
-    "POB Report": ["pob report", "personnel on board", "manpower report"],
-    "ILM Report": ["ilm report", "inter location move", "rig move report"],
+    "Daily Rig Report": [
+        "daily rig report", "drr", "daily drilling report",
+        # KRISS naming conventions
+        "daily report", "daily all reports", "dcr report", "dcr",
+        "ro daily", "all reports of rig",
+    ],
+    "HSD Report": ["hsd report", "diesel report", "fuel report", "hsd"],
+    "POB Report": ["pob report", "personnel on board", "manpower report", "pob"],
+    "ILM Report": ["ilm report", "inter location move", "rig move report", "ilm"],
     "Safety Report": ["safety report", "hse report", "incident report", "near miss"],
     "Equipment Report": ["equipment report", "maintenance report", "breakdown report"],
 }
