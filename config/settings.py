@@ -7,7 +7,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'insecure-development-key-chang
 
 DEBUG = False
 
-ALLOWED_HOSTS = ['192.168.0.250', '192.168.29.44', 'localhost', '127.0.0.1', 'db.krissdrilling.com', 'www.db.krissdrilling.com']
+ALLOWED_HOSTS = ['192.168.0.250', '192.168.0.208', 'localhost', '127.0.0.1', 'db.krissdrilling.com', 'www.db.krissdrilling.com']
 CSRF_TRUSTED_ORIGINS = ['https://db.krissdrilling.com']
 #SESSION_COOKIE_SECURE = True
 #CSRF_COOKIE_SECURE = True
@@ -128,3 +128,4 @@ EMAIL_COLLECTION_MAX_ZIP_UNCOMPRESSED_BYTES = int(
 EMAIL_COLLECTION_REVIEW_THRESHOLD = float(os.environ.get('EMAIL_COLLECTION_REVIEW_THRESHOLD', '0.65'))
 EMAIL_COLLECTION_MAX_ATTEMPTS = int(os.environ.get('EMAIL_COLLECTION_MAX_ATTEMPTS', 3))
 EMAIL_REPORTS_AI_EXTRACTOR = os.environ.get('EMAIL_REPORTS_AI_EXTRACTOR', '')
+EMAIL_REPORTS_AI_MODEL = os.environ.get('EMAIL_REPORTS_AI_MODEL', 'claude-opus-4-8')

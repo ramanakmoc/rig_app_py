@@ -55,6 +55,10 @@ Set at minimum `DJANGO_SECRET_KEY`, `EMAIL_COLLECTION_FERNET_KEY`, all `DB_*`
 values, `ALLOWED_HOSTS`, and the outbound SMTP settings. Do not reuse the Django
 secret as the Fernet key.
 
+For AI-assisted extraction (Claude Opus 4.8), also set `ANTHROPIC_API_KEY`. Leave
+`EMAIL_REPORTS_AI_EXTRACTOR` blank to fall back to rules-only classification — the
+system runs fully without an API key, just without the AI upgrade layer.
+
 Build and start the core services:
 
 ```bash

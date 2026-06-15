@@ -66,8 +66,10 @@ services:
         condition: service_healthy
     entrypoint: []
     command: >
-      sh -c "echo '30 5 * * * cd /app && python manage.py send_daily_report >> /var/log/daily_report.log 2>&1' | crontab -
-      && crond -f"
+      sh -c "while true; do
+      if [ $$(date +%H:%M) = 05:30 ]; then
+      python manage.py send_daily_report >> /var/log/daily_report.log 2>&1; sleep 60;
+      fi; sleep 25; done"
 
   email_collector:
     build: .
